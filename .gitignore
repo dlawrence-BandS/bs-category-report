@@ -1,0 +1,7 @@
+# service account keys - NEVER commit these
+*service*account*.json
+*serviceaccount*.json
+commanding-air-*.json
+key*.json
+credentials*.json
+__pycache__/

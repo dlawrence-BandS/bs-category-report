@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B&amp;S | Item Category Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#22303c; --ink-soft:#5a6b7a; --paper:#f2f0eb; --card:#ffffff;
+    --head:#1f3d33; --head-2:#2a5244; --line:#e3ded4; --accent:#b97742;
+    --up:#1e7d4f; --down:#c0392b; --chip:#eef2ef;
+    --f-data:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    --f-disp:Georgia,"Times New Roman",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--f-data);font-size:13px}
+  header{background:var(--head);color:#fff;padding:14px 22px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  header h1{font-family:var(--f-disp);font-weight:400;font-size:20px;letter-spacing:.3px}
+  header .brand{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:.85;border-right:1px solid rgba(255,255,255,.3);padding-right:14px}
+  header .meta{margin-left:auto;font-size:11px;opacity:.75}
+  nav{background:#fff;border-bottom:1px solid var(--line);padding:0 12px;display:flex;overflow-x:auto;position:sticky;top:0;z-index:20}
+  nav button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 14px;font:600 12.5px var(--f-data);color:var(--ink-soft);cursor:pointer;white-space:nowrap}
+  nav button:hover{color:var(--ink)}
+  nav button.on{color:var(--head);border-bottom-color:var(--accent)}
+  main{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+  .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft)}
+  .kpi .v{font-family:var(--f-disp);font-size:23px;margin:2px 0}
+  .kpi .d{font-size:11px;font-weight:600}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-soft)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:16px;overflow:hidden}
+  .card h2{background:var(--head-2);color:#fff;font:600 12.5px var(--f-data);letter-spacing:.4px;padding:9px 14px;display:flex;align-items:center;gap:10px}
+  .card h2 .sub{font-weight:400;opacity:.75;font-size:11px}
+  .card .body{padding:12px 14px}
+  .chartbox{position:relative;height:320px}
+  .chartbox.tall{height:380px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:right;padding:7px 8px;border-bottom:2px solid var(--line);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);cursor:pointer;user-select:none;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th.sorton{color:var(--head)}
+  td{padding:6px 8px;border-bottom:1px solid #f0ede6;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.name{max-width:320px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+  tr:hover td{background:#faf8f3}
+  tr.total td{font-weight:700;border-top:2px solid var(--line)}
+  .delta{font-size:10.5px;font-weight:600;margin-left:5px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .controls label{font-size:11px;color:var(--ink-soft);font-weight:600}
+  select,input[type=search]{border:1px solid var(--line);border-radius:5px;padding:7px 9px;font:12.5px var(--f-data);background:#fff;color:var(--ink)}
+  input[type=search]{min-width:230px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:5px;padding:7px 12px;font:600 12px var(--f-data);cursor:pointer;color:var(--ink)}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;font-size:11.5px;color:var(--ink-soft)}
+  .note{font-size:11px;color:var(--ink-soft);padding:8px 14px;border-top:1px solid #f0ede6}
+  .tabpage{display:none}.tabpage.on{display:block}
+  .loading{padding:60px;text-align:center;color:var(--ink-soft);font-family:var(--f-disp);font-size:16px}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">Barker and Stonehouse</span>
+  <h1>Item Category Report</h1>
+  <span class="meta" id="metaLine">loading…</span>
+</header>
+<nav id="nav"></nav>
+<main id="main"><div class="loading">Loading data…</div></main>
+
+<script>
+"use strict";
+/* ============================== helpers ============================== */
+const gbp = v => "£" + Math.round(v).toLocaleString("en-GB");
+const num = v => Math.round(v).toLocaleString("en-GB");
+const pct = v => (v*100).toFixed(2) + "%";
+const dl = (cur, prev, invert) => {
+  if (!prev) return `<span class="delta flat">–</span>`;
+  const d = (cur - prev) / prev;
+  const cls = Math.abs(d) < 0.0005 ? "flat" : ((d > 0) !== !!invert ? "up" : "down");
+  const arrow = d > 0 ? "▲" : d < 0 ? "▼" : "";
+  return `<span class="delta ${cls}">${arrow} ${(Math.abs(d)*100).toFixed(1)}%</span>`;
+};
+const PAL = ["#d6336c","#2f9e9a","#5c7cfa","#e8890c","#7048a8","#94ad24","#c0392b","#3d6b96",
+             "#b97742","#4d8a5f","#c26fa8","#6b7280","#1f7a8c","#a05c2c","#556b2f","#8b5e83"];
+const col = i => PAL[i % PAL.length];
+const heat = (v, max, hue) => max > 0 && v > 0 ? `background:hsla(${hue},55%,50%,${0.08 + 0.5*Math.min(1, v/max)})` : "";
+Chart.defaults.font.family = getComputedStyle(document.documentElement).getPropertyValue("--f-data");
+Chart.defaults.font.size = 11;
+Chart.defaults.color = "#5a6b7a";
+const charts = {};
+function draw(id, cfg){
+  if (charts[id]) charts[id].destroy();
+  const el = document.getElementById(id);
+  if (el) charts[id] = new Chart(el, cfg);
+}
+const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
+const groupBy = (arr, f) => arr.reduce((m, x) => ((m[f(x)] = m[f(x)] || []).push(x), m), {});
+const shortDate = s => { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
+const monthLbl = s => new Date(s + "T00:00:00").toLocaleDateString("en-GB", {month:"short", year:"2-digit"});
+
+/* ============================== state ============================== */
+let D = {}; // all datasets
+const TABS = [];
+
+async function boot(){
+  const files = ["meta","weekly_category","weekly_subcategory","monthly_category",
+                 "daily_focus","items_wow","focus_breakdown","channels"];
+  try {
+    const res = await Promise.all(files.map(f => fetch("data/" + f + ".json").then(r => {
+      if (!r.ok) throw new Error(f + ".json missing (" + r.status + ")");
+      return r.json();
+    })));
+    files.forEach((f, i) => D[f] = res[i]);
+  } catch (e) {
+    document.getElementById("main").innerHTML =
+      `<div class="loading">Could not load data files.<br><small>${e.message}. Run <code>py refresh_data.py</code> (or <code>py make_sample_data.py</code> for a preview), and serve over http — e.g. <code>py -m http.server</code>.</small></div>`;
+    return;
+  }
+  document.getElementById("metaLine").textContent =
+    `Week ${shortDate(D.meta.cur_start)} – ${shortDate(D.meta.cur_end)} vs prior · refreshed ${D.meta.generated}`;
+
+  TABS.push({id:"cat", label:"Category Summary (Weekly)", render: renderCategory});
+  TABS.push({id:"sub", label:"Sub-Category Summary (Weekly)", render: renderSubcategory});
+  for (const [k, label] of Object.entries(D.meta.focus))
+    TABS.push({id:"f_"+k, label: label + " Sales", render: () => renderFocus(k, label)});
+  TABS.push({id:"items", label:"Item Ranges & Item Sales", render: renderItems});
+  TABS.push({id:"detail", label:"Item Detail & Channels", render: renderDetail});
+
+  const nav = document.getElementById("nav");
+  nav.innerHTML = TABS.map(t => `<button data-t="${t.id}">${t.label}</button>`).join("");
+  nav.onclick = e => { const b = e.target.closest("button"); if (b) show(b.dataset.t); };
+  document.getElementById("main").innerHTML =
+    TABS.map(t => `<section class="tabpage" id="pg_${t.id}"></section>`).join("");
+  show(TABS[0].id);
+}
+
+const rendered = {};
+function show(id){
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === id));
+  document.querySelectorAll(".tabpage").forEach(p => p.classList.toggle("on", p.id === "pg_" + id));
+  if (!rendered[id]) { rendered[id] = true; TABS.find(t => t.id === id).render(); }
+}
+
+/* ============================== shared builders ============================== */
+function kpiRow(items){
+  return `<div class="kpis">` + items.map(k =>
+    `<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="d">${k.d || ""}</div></div>`).join("") + `</div>`;
+}
+
+function weeklyKpis(rows){
+  const cs = D.meta.cur_start, ps = D.meta.prev_start;
+  const cur = rows.filter(r => r.w === cs), prev = rows.filter(r => r.w === ps);
+  const m = a => ({s: sum(a, r => r.s), t: sum(a, r => r.t), ip: sum(a, r => r.ip), r: sum(a, r => r.r), iv: sum(a, r => r.iv)});
+  const c = m(cur), p = m(prev);
+  const cvr = c.s ? c.t/c.s : 0, pcvr = p.s ? p.t/p.s : 0;
+  const aov = c.t ? c.r/c.t : 0, paov = p.t ? p.r/p.t : 0;
+  return kpiRow([
+    {l:"Sessions (item viewed)", v:num(c.s), d:dl(c.s, p.s)},
+    {l:"Items purchased", v:num(c.ip), d:dl(c.ip, p.ip)},
+    {l:"Transactions", v:num(c.t), d:dl(c.t, p.t)},
+    {l:"Purchase conversion", v:pct(cvr), d:dl(cvr, pcvr)},
+    {l:"Item revenue", v:gbp(c.r), d:dl(c.r, p.r)},
+    {l:"AOV", v:gbp(aov), d:dl(aov, paov)},
+  ]);
+}
+
+// weekly 100% stacked bar of metric by dimension
+function stacked100(canvasId, rows, metric, topN){
+  const byC = groupBy(rows, r => r.c);
+  const tops = Object.entries(byC).map(([c, a]) => [c, sum(a, r => r[metric])])
+    .sort((a, b) => b[1] - a[1]).slice(0, topN).map(x => x[0]);
+  const weeks = [...new Set(rows.map(r => r.w))].sort();
+  const lookup = {};
+  rows.forEach(r => lookup[r.w + "|" + r.c] = (lookup[r.w + "|" + r.c] || 0) + r[metric]);
+  const totals = weeks.map(w => tops.reduce((a, c) => a + (lookup[w + "|" + c] || 0), 0));
+  const ds = tops.map((c, i) => ({
+    label: c, backgroundColor: col(i),
+    data: weeks.map((w, wi) => totals[wi] ? 100 * (lookup[w + "|" + c] || 0) / totals[wi] : 0),
+  }));
+  draw(canvasId, {type:"bar", data:{labels: weeks.map(monthLbl), datasets: ds},
+    options:{responsive:true, maintainAspectRatio:false,
+      scales:{x:{stacked:true, ticks:{maxTicksLimit:18, maxRotation:45}}, y:{stacked:true, max:100, ticks:{callback:v => v + "%"}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}},
+        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}}}});
+}
+
+function weeklyLines(canvasId, rows, metric, topN, fmt){
+  const byC = groupBy(rows, r => r.c);
+  const tops = Object.entries(byC).map(([c, a]) => [c, sum(a, r => r.r)])
+    .sort((a, b) => b[1] - a[1]).slice(0, topN).map(x => x[0]);
+  const weeks = [...new Set(rows.map(r => r.w))].sort();
+  const lookup = {};
+  rows.forEach(r => lookup[r.w + "|" + r.c] = r);
+  const ds = tops.map((c, i) => ({
+    label: c, borderColor: col(i), backgroundColor: col(i), borderWidth: 1.8, pointRadius: 0, tension: .25,
+    data: weeks.map(w => {
+      const r = lookup[w + "|" + c];
+      if (!r) return 0;
+      if (metric === "cvr") return r.s ? 100 * r.t / r.s : 0;
+      return r[metric];
+    }),
+  }));
+  draw(canvasId, {type:"line", data:{labels: weeks.map(monthLbl), datasets: ds},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
+      scales:{x:{ticks:{maxTicksLimit:18, maxRotation:45}}, y:{ticks:{callback: fmt}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
+}
+
+// KPI table with WoW deltas + heatmap, for category/subcategory summaries
+function kpiTable(rows, dimLabel){
+  const cs = D.meta.cur_start, ps = D.meta.prev_start;
+  const cur = groupBy(rows.filter(r => r.w === cs), r => r.c);
+  const prev = groupBy(rows.filter(r => r.w === ps), r => r.c);
+  const cats = Object.keys(cur).map(c => {
+    const a = cur[c][0], b = (prev[c] || [{}])[0] || {};
+    return {c, s:a.s, t:a.t, ip:a.ip, r:a.r, cvr: a.s ? a.t/a.s : 0, aov: a.t ? a.r/a.t : 0,
+            s_p:b.s||0, t_p:b.t||0, r_p:b.r||0, cvr_p: b.s ? b.t/b.s : 0, aov_p: b.t ? b.r/b.t : 0};
+  }).sort((a, b) => b.r - a.r);
+  const totR = sum(cats, x => x.r);
+  const mx = f => Math.max(...cats.map(x => x[f]), 1);
+  const M = {s:mx("s"), t:mx("t"), cvr:mx("cvr"), r:mx("r"), aov:mx("aov")};
+  let html = `<table><thead><tr><th>${dimLabel}</th><th>Sessions</th><th></th><th>Trans.</th><th></th>
+    <th>CVR</th><th></th><th>Revenue</th><th></th><th>Rev. share</th><th>AOV</th><th></th></tr></thead><tbody>`;
+  for (const x of cats) {
+    html += `<tr><td class="name">${x.c}</td>
+      <td style="${heat(x.s, M.s, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
+      <td style="${heat(x.t, M.t, 175)}">${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
+      <td style="${heat(x.cvr, M.cvr, 320)}">${pct(x.cvr)}</td><td>${dl(x.cvr, x.cvr_p)}</td>
+      <td style="${heat(x.r, M.r, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
+      <td>${totR ? (100*x.r/totR).toFixed(1) : 0}%</td>
+      <td style="${heat(x.aov, M.aov, 95)}">${gbp(x.aov)}</td><td>${dl(x.aov, x.aov_p)}</td></tr>`;
+  }
+  const t = {s:sum(cats,x=>x.s), t:sum(cats,x=>x.t), r:totR,
+             s_p:sum(cats,x=>x.s_p), t_p:sum(cats,x=>x.t_p), r_p:sum(cats,x=>x.r_p)};
+  html += `<tr class="total"><td>Grand total</td><td>${num(t.s)}</td><td>${dl(t.s,t.s_p)}</td>
+    <td>${num(t.t)}</td><td>${dl(t.t,t.t_p)}</td>
+    <td>${t.s?pct(t.t/t.s):"-"}</td><td>${dl(t.s?t.t/t.s:0, t.s_p?t.t_p/t.s_p:0)}</td>
+    <td>${gbp(t.r)}</td><td>${dl(t.r,t.r_p)}</td><td>100%</td>
+    <td>${t.t?gbp(t.r/t.t):"-"}</td><td></td></tr></tbody></table>`;
+  return html;
+}
+
+/* ============================== tab 1: category summary ============================== */
+function renderCategory(){
+  const rows = D.weekly_category;
+  const pg = document.getElementById("pg_cat");
+  pg.innerHTML = weeklyKpis(rows) + `
+    <div class="card"><h2>Category KPIs — last week <span class="sub">vs previous week</span></h2>
+      <div class="body" style="overflow-x:auto">${kpiTable(rows, "Item category")}</div></div>
+    <div class="card"><h2>Category share by transactions <span class="sub">weekly, 100% stacked</span></h2>
+      <div class="body chartbox"><canvas id="c_cat_t"></canvas></div></div>
+    <div class="card"><h2>Category conversion rate <span class="sub">weekly CVR by category</span></h2>
+      <div class="body chartbox"><canvas id="c_cat_cvr"></canvas></div></div>
+    <div class="card"><h2>Category share by revenue <span class="sub">weekly, 100% stacked</span></h2>
+      <div class="body chartbox"><canvas id="c_cat_r"></canvas></div></div>
+    <div class="card"><h2>Sessions by calendar month <span class="sub">all years combined, 100% stacked</span></h2>
+      <div class="body chartbox"><canvas id="c_cat_m"></canvas></div></div>`;
+  stacked100("c_cat_t", rows, "t", 9);
+  weeklyLines("c_cat_cvr", rows, "cvr", 8, v => v.toFixed(2) + "%");
+  stacked100("c_cat_r", rows, "r", 9);
+  // monthly stacked
+  const mrows = D.monthly_category;
+  const cats = Object.entries(groupBy(mrows, r => r.c)).map(([c, a]) => [c, sum(a, r => r.s)])
+    .sort((a, b) => b[1] - a[1]).slice(0, 9).map(x => x[0]);
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const lk = {}; mrows.forEach(r => lk[r.m + "|" + r.c] = r.s);
+  const tot = months.map((_, i) => cats.reduce((a, c) => a + (lk[(i+1) + "|" + c] || 0), 0));
+  draw("c_cat_m", {type:"bar",
+    data:{labels: months, datasets: cats.map((c, i) => ({label: c, backgroundColor: col(i),
+      data: months.map((_, mi) => tot[mi] ? 100 * (lk[(mi+1) + "|" + c] || 0) / tot[mi] : 0)}))},
+    options:{responsive:true, maintainAspectRatio:false,
+      scales:{x:{stacked:true}, y:{stacked:true, max:100, ticks:{callback:v => v + "%"}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
+}
+
+/* ============================== tab 2: sub-category summary ============================== */
+function renderSubcategory(){
+  const rows = D.weekly_subcategory.filter(r => r.c !== "Other" && r.c !== "(not set)");
+  const pg = document.getElementById("pg_sub");
+  pg.innerHTML = weeklyKpis(D.weekly_subcategory) + `
+    <div class="card"><h2>Sub-category KPIs — last week <span class="sub">vs previous week, top 15 by revenue</span></h2>
+      <div class="body" style="overflow-x:auto" id="subTable"></div></div>
+    <div class="card"><h2>Transactions by sub-category <span class="sub">weekly, top 6</span></h2>
+      <div class="body chartbox"><canvas id="c_sub_t"></canvas></div></div>
+    <div class="card"><h2>Conversion rate by sub-category <span class="sub">weekly, top 6</span></h2>
+      <div class="body chartbox"><canvas id="c_sub_cvr"></canvas></div></div>
+    <div class="card"><h2>Revenue by sub-category <span class="sub">weekly, top 6</span></h2>
+      <div class="body chartbox"><canvas id="c_sub_r"></canvas></div></div>
+    <div class="card"><h2>Sessions by sub-category <span class="sub">weekly, top 6</span></h2>
+      <div class="body chartbox"><canvas id="c_sub_s"></canvas></div></div>`;
+  // trim the table to top 15 subcats by last-week revenue
+  const cs = D.meta.cur_start;
+  const top15 = Object.entries(groupBy(rows.filter(r => r.w === cs), r => r.c))
+    .map(([c, a]) => [c, sum(a, r => r.r)]).sort((a, b) => b[1] - a[1]).slice(0, 15).map(x => x[0]);
+  document.getElementById("subTable").innerHTML =
+    kpiTable(rows.filter(r => top15.includes(r.c)), "Sub-category");
+  weeklyLines("c_sub_t", rows, "t", 6, num);
+  weeklyLines("c_sub_cvr", rows, "cvr", 6, v => v.toFixed(2) + "%");
+  weeklyLines("c_sub_r", rows, "r", 6, v => "£" + (v/1000).toFixed(0) + "k");
+  weeklyLines("c_sub_s", rows, "s", 6, v => (v/1000).toFixed(0) + "k");
+}
+
+/* ============================== focus tabs ============================== */
+function yoyLine(canvasId, daily, field, fmt, agg){
+  // aggregate to weekly for readability; overlay same weeks last year (shift 364d)
+  const byW = {};
+  daily.forEach(r => {
+    const d = new Date(r.d + "T00:00:00");
+    const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const w = mon.toISOString().slice(0, 10);
+    byW[w] = byW[w] || {s:0, t:0, r:0, ip:0};
+    byW[w].s += r.s; byW[w].t += r.t; byW[w].r += r.r; byW[w].ip += r.ip;
+  });
+  const weeks = Object.keys(byW).sort();
+  const val = w => {
+    const x = byW[w]; if (!x) return null;
+    return field === "cvr" ? (x.s ? 100 * x.t / x.s : 0) : x[field];
+  };
+  const start = weeks.length > 56 ? weeks.slice(-56) : weeks; // show last ~13 months
+  const ly = w => { const d = new Date(w + "T00:00:00"); d.setDate(d.getDate() - 364); return d.toISOString().slice(0, 10); };
+  draw(canvasId, {type:"line",
+    data:{labels: start.map(monthLbl), datasets:[
+      {label:"This year", data: start.map(val), borderColor:"#1f3d33", backgroundColor:"#1f3d33", borderWidth:2, pointRadius:0, tension:.25},
+      {label:"Previous year", data: start.map(w => val(ly(w))), borderColor:"#b0a893", backgroundColor:"#b0a893", borderWidth:1.5, borderDash:[5,4], pointRadius:0, tension:.25},
+    ]},
+    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
+      scales:{x:{ticks:{maxTicksLimit:14}}, y:{ticks:{callback: fmt}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
+}
+
+function stackedDaily(canvasId, rows, dimField){
+  const tops = Object.entries(groupBy(rows, r => r[dimField])).map(([c, a]) => [c, sum(a, r => r.r)])
+    .sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
+  const days = [...new Set(rows.map(r => r.d))].sort();
+  const lk = {};
+  rows.forEach(r => {
+    const key = r.d + "|" + (tops.includes(r[dimField]) ? r[dimField] : "Other");
+    lk[key] = (lk[key] || 0) + r.r;
+  });
+  const dims = tops.concat(rows.some(r => !tops.includes(r[dimField])) ? ["Other"] : []);
+  draw(canvasId, {type:"bar",
+    data:{labels: days.map(shortDate), datasets: dims.map((c, i) => ({label: c,
+      backgroundColor: c === "Other" ? "#cfc9bb" : col(i), data: days.map(d => lk[d + "|" + c] || 0)}))},
+    options:{responsive:true, maintainAspectRatio:false,
+      scales:{x:{stacked:true, ticks:{maxTicksLimit:14, maxRotation:45}}, y:{stacked:true, ticks:{callback:v => "£" + (v/1000).toFixed(0) + "k"}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}},
+        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${gbp(c.parsed.y)}`}}}}});
+}
+
+function renderFocus(k, label){
+  const pg = document.getElementById("pg_f_" + k);
+  const daily = D.daily_focus.filter(r => r.k === k);
+  const cs = D.meta.cur_start, ce = D.meta.cur_end, ps = D.meta.prev_start;
+  const inRange = (d, a, b) => d >= a && d <= b;
+  const cur = daily.filter(r => inRange(r.d, cs, ce));
+  const prev = daily.filter(r => inRange(r.d, ps, cs) && r.d < cs);
+  const m = a => ({s:sum(a,r=>r.s), t:sum(a,r=>r.t), ip:sum(a,r=>r.ip), r:sum(a,r=>r.r)});
+  const c = m(cur), p = m(prev);
+  const items = D.items_wow.filter(r => r.k === k && (r.r > 0 || r.s > 100))
+    .sort((a, b) => b.r - a.r).slice(0, 25);
+  const mxR = Math.max(...items.map(x => x.r), 1), mxS = Math.max(...items.map(x => x.s), 1);
+  pg.innerHTML = kpiRow([
+    {l:"Sessions", v:num(c.s), d:dl(c.s, p.s)},
+    {l:"Items purchased", v:num(c.ip), d:dl(c.ip, p.ip)},
+    {l:"Transactions", v:num(c.t), d:dl(c.t, p.t)},
+    {l:"Purchase conversion", v:c.s?pct(c.t/c.s):"-", d:dl(c.s?c.t/c.s:0, p.s?p.t/p.s:0)},
+    {l:"Item revenue", v:gbp(c.r), d:dl(c.r, p.r)},
+    {l:"AOV", v:c.t?gbp(c.r/c.t):"-", d:dl(c.t?c.r/c.t:0, p.t?p.r/p.t:0)},
+  ]) + `
+    <div class="card"><h2>${label} — item detail, last week <span class="sub">top 25 by revenue, WoW deltas</span></h2>
+      <div class="body" style="overflow-x:auto"><table><thead><tr>
+        <th>Item name</th><th>Revenue</th><th></th><th>Sessions</th><th></th>
+        <th>Transactions</th><th>Items purchased</th><th>CVR</th></tr></thead><tbody>` +
+    items.map(x => `<tr><td class="name" title="${x.n}">${x.n}</td>
+      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
+      <td style="${heat(x.s, mxS, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
+      <td>${num(x.t)}</td><td>${num(x.ip)}</td><td>${x.s ? pct(x.t/x.s) : "-"}</td></tr>`).join("") +
+    `</tbody></table></div></div>
+    <div class="card"><h2>Revenue vs last year <span class="sub">weekly</span></h2>
+      <div class="body chartbox"><canvas id="cf_r_${k}"></canvas></div></div>
+    <div class="twocol">
+      <div class="card"><h2>Revenue by range <span class="sub">daily, last 28 days</span></h2>
+        <div class="body chartbox"><canvas id="cf_rg_${k}"></canvas></div></div>
+      <div class="card"><h2>Revenue by item type <span class="sub">daily, last 28 days</span></h2>
+        <div class="body chartbox"><canvas id="cf_ty_${k}"></canvas></div></div>
+    </div>
+    <div class="card"><h2>Sessions vs last year <span class="sub">weekly</span></h2>
+      <div class="body chartbox"><canvas id="cf_s_${k}"></canvas></div></div>
+    <div class="card"><h2>Conversion rate vs last year <span class="sub">weekly</span></h2>
+      <div class="body chartbox"><canvas id="cf_c_${k}"></canvas></div></div>`;
+  yoyLine("cf_r_" + k, daily, "r", v => "£" + (v/1000).toFixed(0) + "k");
+  yoyLine("cf_s_" + k, daily, "s", v => (v/1000).toFixed(1) + "k");
+  yoyLine("cf_c_" + k, daily, "cvr", v => v.toFixed(2) + "%");
+  const bd = D.focus_breakdown.filter(r => r.k === k);
+  stackedDaily("cf_rg_" + k, bd, "rg");
+  stackedDaily("cf_ty_" + k, bd, "c2");
+}
+
+/* ============================== tab: items WoW ============================== */
+const itemsState = {sort:"s", dir:-1, page:0, q:"", cat:"", per:50};
+function renderItems(){
+  const pg = document.getElementById("pg_items");
+  const cats = [...new Set(D.items_wow.map(r => r.c).filter(Boolean))].sort();
+  pg.innerHTML = `
+    <div class="controls">
+      <input type="search" id="itQ" placeholder="Search item name…">
+      <label>Category</label>
+      <select id="itC"><option value="">All categories</option>${cats.map(c => `<option>${c}</option>`).join("")}</select>
+      <button class="btn" id="itCsv">Export CSV</button>
+    </div>
+    <div class="card"><h2>Item detail — week on week <span class="sub">last full week vs prior; click headers to sort</span></h2>
+      <div class="body" style="overflow-x:auto" id="itTable"></div>
+      <div class="pager"><span id="itInfo"></span>
+        <button class="btn" id="itPrev">‹</button><button class="btn" id="itNext">›</button></div>
+    </div>`;
+  document.getElementById("itQ").oninput = e => { itemsState.q = e.target.value.toLowerCase(); itemsState.page = 0; drawItems(); };
+  document.getElementById("itC").onchange = e => { itemsState.cat = e.target.value; itemsState.page = 0; drawItems(); };
+  document.getElementById("itPrev").onclick = () => { if (itemsState.page > 0) { itemsState.page--; drawItems(); } };
+  document.getElementById("itNext").onclick = () => { itemsState.page++; drawItems(); };
+  document.getElementById("itCsv").onclick = () => exportCsv(filteredItems(),
+    ["n","c","c2","r","r_p","s","s_p","t","t_p","ip","ip_p"],
+    ["Item name","Category","Sub-category","Revenue","Revenue prev","Sessions","Sessions prev","Transactions","Transactions prev","Items purchased","Items purchased prev"],
+    "items_wow.csv");
+  drawItems();
+}
+function filteredItems(){
+  let rows = D.items_wow;
+  if (itemsState.q) rows = rows.filter(r => r.n.toLowerCase().includes(itemsState.q));
+  if (itemsState.cat) rows = rows.filter(r => r.c === itemsState.cat);
+  const f = itemsState.sort;
+  return [...rows].sort((a, b) => itemsState.dir * ((a[f] || 0) > (b[f] || 0) ? 1 : -1));
+}
+function drawItems(){
+  const rows = filteredItems();
+  const pageMax = Math.max(0, Math.ceil(rows.length / itemsState.per) - 1);
+  itemsState.page = Math.min(itemsState.page, pageMax);
+  const slice = rows.slice(itemsState.page * itemsState.per, (itemsState.page + 1) * itemsState.per);
+  const mxR = Math.max(...rows.map(x => x.r), 1), mxS = Math.max(...rows.map(x => x.s), 1);
+  const H = (f, lbl) => `<th data-f="${f}" class="${itemsState.sort===f?"sorton":""}">${lbl}${itemsState.sort===f?(itemsState.dir<0?" ↓":" ↑"):""}</th>`;
+  document.getElementById("itTable").innerHTML = `<table><thead><tr>
+    <th style="text-align:right">#</th>${H("c","Category")}${H("n","Item name")}
+    ${H("r","Revenue")}<th></th>${H("s","Sessions")}<th></th>${H("t","Trans.")}<th></th>${H("ip","Items")}<th></th></tr></thead><tbody>` +
+    slice.map((x, i) => `<tr>
+      <td>${itemsState.page * itemsState.per + i + 1}.</td>
+      <td style="text-align:left;color:var(--ink-soft);font-size:11px">${x.c || "-"}</td>
+      <td class="name" title="${x.n}">${x.n}</td>
+      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
+      <td style="${heat(x.s, mxS, 175)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
+      <td>${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
+      <td>${num(x.ip)}</td><td>${dl(x.ip, x.ip_p)}</td></tr>`).join("") +
+    `<tr class="total"><td></td><td></td><td>Total (filtered)</td>
+      <td>${gbp(sum(rows, x => x.r))}</td><td>${dl(sum(rows,x=>x.r), sum(rows,x=>x.r_p))}</td>
+      <td>${num(sum(rows, x => x.s))}</td><td>${dl(sum(rows,x=>x.s), sum(rows,x=>x.s_p))}</td>
+      <td>${num(sum(rows, x => x.t))}</td><td>${dl(sum(rows,x=>x.t), sum(rows,x=>x.t_p))}</td>
+      <td>${num(sum(rows, x => x.ip))}</td><td>${dl(sum(rows,x=>x.ip), sum(rows,x=>x.ip_p))}</td></tr>
+    </tbody></table>`;
+  document.getElementById("itInfo").textContent =
+    `${itemsState.page * itemsState.per + 1}–${Math.min(rows.length, (itemsState.page + 1) * itemsState.per)} of ${rows.length}`;
+  document.querySelectorAll("#itTable th[data-f]").forEach(th => th.onclick = () => {
+    const f = th.dataset.f;
+    if (itemsState.sort === f) itemsState.dir *= -1; else { itemsState.sort = f; itemsState.dir = -1; }
+    drawItems();
+  });
+}
+
+/* ============================== tab: item detail + channels ============================== */
+const detState = {sort:"r", dir:-1, page:0, q:"", per:50};
+function renderDetail(){
+  const pg = document.getElementById("pg_detail");
+  pg.innerHTML = `
+    <div class="controls">
+      <input type="search" id="dtQ" placeholder="Search item name or ID…">
+      <button class="btn" id="dtCsv">Export CSV</button>
+    </div>
+    <div class="card"><h2>Item detail — last week <span class="sub">with item IDs</span></h2>
+      <div class="body" style="overflow-x:auto" id="dtTable"></div>
+      <div class="pager"><span id="dtInfo"></span>
+        <button class="btn" id="dtPrev">‹</button><button class="btn" id="dtNext">›</button></div>
+    </div>
+    <div class="card"><h2>Channel performance — last week <span class="sub">vs previous week, session default channel grouping</span></h2>
+      <div class="body" style="overflow-x:auto" id="chTable"></div>
+      <div class="note">Sessions here are all site sessions by channel (not item-scoped).</div></div>
+    <div class="card"><h2>Revenue by channel <span class="sub">daily, last 14 days</span></h2>
+      <div class="body chartbox"><canvas id="c_ch"></canvas></div></div>`;
+  document.getElementById("dtQ").oninput = e => { detState.q = e.target.value.toLowerCase(); detState.page = 0; drawDetail(); };
+  document.getElementById("dtPrev").onclick = () => { if (detState.page > 0) { detState.page--; drawDetail(); } };
+  document.getElementById("dtNext").onclick = () => { detState.page++; drawDetail(); };
+  document.getElementById("dtCsv").onclick = () => exportCsv(filteredDet(),
+    ["n","id","c","c2","b","ip","r","t","s"],
+    ["Item name","Item ID","Category","Sub-category","Brand","Items purchased","Revenue","Transactions","Sessions"],
+    "item_detail.csv");
+  drawDetail();
+  drawChannels();
+}
+function filteredDet(){
+  let rows = D.items_wow.filter(r => r.s > 0 || r.r > 0);
+  if (detState.q) rows = rows.filter(r => r.n.toLowerCase().includes(detState.q) || (r.id || "").toLowerCase().includes(detState.q));
+  const f = detState.sort;
+  return [...rows].sort((a, b) => detState.dir * ((a[f] || 0) > (b[f] || 0) ? 1 : -1));
+}
+function drawDetail(){
+  const rows = filteredDet();
+  detState.page = Math.min(detState.page, Math.max(0, Math.ceil(rows.length / detState.per) - 1));
+  const slice = rows.slice(detState.page * detState.per, (detState.page + 1) * detState.per);
+  const H = (f, lbl) => `<th data-f="${f}" class="${detState.sort===f?"sorton":""}">${lbl}${detState.sort===f?(detState.dir<0?" ↓":" ↑"):""}</th>`;
+  document.getElementById("dtTable").innerHTML = `<table><thead><tr>
+    ${H("n","Item name")}<th>Item ID</th>${H("ip","Items purchased")}${H("r","Item revenue")}${H("t","Transactions")}${H("s","Sessions")}<th>CVR</th></tr></thead><tbody>` +
+    slice.map(x => `<tr><td class="name" title="${x.n}">${x.n}</td>
+      <td style="text-align:left;font-size:11px;color:var(--ink-soft)">${x.id || "-"}</td>
+      <td>${num(x.ip)}</td><td>${gbp(x.r)}</td><td>${num(x.t)}</td><td>${num(x.s)}</td>
+      <td>${x.s ? pct(x.t/x.s) : "-"}</td></tr>`).join("") + `</tbody></table>`;
+  document.getElementById("dtInfo").textContent =
+    `${detState.page * detState.per + 1}–${Math.min(rows.length, (detState.page + 1) * detState.per)} of ${rows.length}`;
+  document.querySelectorAll("#dtTable th[data-f]").forEach(th => th.onclick = () => {
+    const f = th.dataset.f;
+    if (detState.sort === f) detState.dir *= -1; else { detState.sort = f; detState.dir = -1; }
+    drawDetail();
+  });
+}
+function drawChannels(){
+  const rows = D.channels;
+  const cs = D.meta.cur_start;
+  const cur = groupBy(rows.filter(r => r.d >= cs), r => r.ch);
+  const prev = groupBy(rows.filter(r => r.d < cs), r => r.ch);
+  const chs = Object.keys({...cur, ...prev}).map(ch => {
+    const a = cur[ch] || [], b = prev[ch] || [];
+    const c = {ch, s:sum(a,r=>r.s), t:sum(a,r=>r.t), r:sum(a,r=>r.r),
+               s_p:sum(b,r=>r.s), t_p:sum(b,r=>r.t), r_p:sum(b,r=>r.r)};
+    c.cvr = c.s ? c.t/c.s : 0; c.cvr_p = c.s_p ? c.t_p/c.s_p : 0;
+    return c;
+  }).sort((a, b) => b.r - a.r);
+  const mxR = Math.max(...chs.map(x => x.r), 1), mxS = Math.max(...chs.map(x => x.s), 1);
+  document.getElementById("chTable").innerHTML = `<table><thead><tr>
+    <th>Channel</th><th>Revenue</th><th></th><th>Sessions</th><th></th><th>Transactions</th><th></th><th>CVR</th><th></th></tr></thead><tbody>` +
+    chs.map(x => `<tr><td class="name">${x.ch}</td>
+      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
+      <td style="${heat(x.s, mxS, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
+      <td>${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
+      <td>${pct(x.cvr)}</td><td>${dl(x.cvr, x.cvr_p)}</td></tr>`).join("") + `</tbody></table>`;
+  // daily stacked revenue by channel
+  const days = [...new Set(rows.map(r => r.d))].sort();
+  const tops = chs.slice(0, 8).map(x => x.ch);
+  const lk = {}; rows.forEach(r => lk[r.d + "|" + r.ch] = r.r);
+  draw("c_ch", {type:"bar",
+    data:{labels: days.map(shortDate), datasets: tops.map((ch, i) => ({label: ch, backgroundColor: col(i),
+      data: days.map(d => lk[d + "|" + ch] || 0)}))},
+    options:{responsive:true, maintainAspectRatio:false,
+      scales:{x:{stacked:true}, y:{stacked:true, ticks:{callback:v => "£" + (v/1000).toFixed(0) + "k"}}},
+      plugins:{legend:{position:"top", labels:{boxWidth:11}},
+        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${gbp(c.parsed.y)}`}}}}});
+}
+
+/* ============================== csv export ============================== */
+function exportCsv(rows, fields, headers, filename){
+  const esc = v => { v = v == null ? "" : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = [headers.join(",")].concat(rows.map(r => fields.map(f => esc(r[f])).join(","))).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
+  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+
+boot();
+</script>
+</body>
+</html>
