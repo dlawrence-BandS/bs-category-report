@@ -1,63 +1,64 @@
-# B&S Item Category Report
+# B&S Item Category Report — live / OAuth build
 
 GitHub Pages replacement for the Looker Studio "Item Category Report - NEW".
-Same pattern as the other dashboards: static `index.html` + JSON data files
-generated from BigQuery by a Python refresh script.
 
-## Tabs
+This version no longer ships pre-baked JSON. A single-file `index.html`:
 
-1. **Category Summary (Weekly)** — KPI cards (last full week WoW), category KPI
-   table with heatmap + deltas, 100% stacked weekly share charts (transactions /
-   revenue), CVR lines, monthly sessions mix.
-2. **Sub-Category Summary (Weekly)** — same, driven by `item_category2`, top-6
-   trend lines for transactions / CVR / revenue / sessions.
-3. **Garden / Sofas / Dining Tables / Dining Chairs / Mattresses Sales** — one
-   deep-dive template per focus category: KPI cards, top-25 item table with WoW
-   deltas, revenue/sessions/CVR vs last year (364-day aligned), revenue by range
-   and by item type (daily, last 28 days).
-4. **Item Ranges & Item Sales** — item-level WoW table. Search, category filter,
-   sortable columns, pagination, CSV export.
-5. **Item Detail & Channels** — item table with item IDs + CSV export, channel
-   performance last week vs prior, daily revenue by channel.
+1. gates access behind **Google sign-in**, restricted to the
+   `barkerandstonehouse.co.uk` Workspace domain, and
+2. queries **BigQuery live** (per signed-in user, BigQuery-readonly scope) for
+   whatever **date range** you pick — so the data is always current and the
+   `data/` folder is gone (no B&S numbers sitting at a public URL any more).
 
-## Data definitions
+The SQL is identical to the old `refresh_data.py` (kept in the repo for
+reference), just ported into the page and parameterised by the selected range.
 
-- **Sessions** = distinct GA4 sessions containing a `view_item` event for an
-  item in that category (item-scoped, matching the Looker report).
-- **Transactions / items purchased / revenue** = from `purchase` event `items`
-  array (`transaction_id`, `quantity`, `item_revenue`).
-- **CVR** = transactions / sessions. **AOV** = revenue / transactions.
-- **Range** = `item_brand`, falling back to the first word of the item name.
-- Channel tab sessions are whole-site sessions by
-  `session_traffic_source_last_click` default channel group (not item-scoped).
-- Header KPIs and tables compare **last full week (Mon–Sun) vs the week before**.
+## One-time setup (required before it works)
 
-## Setup
+1. **OAuth client ID.** Open `index.html` and set `CLIENT_ID` near the top of
+   the script. The same Web-application client you use on bs-search works here,
+   provided `https://dlawrence-bands.github.io` is listed under *Authorised
+   JavaScript origins* for that client. If not, add it (Google Cloud Console →
+   APIs & Services → Credentials).
+2. **Scopes on the consent screen.** The client needs
+   `openid`, `email`, and `https://www.googleapis.com/auth/bigquery.readonly`.
+3. **BigQuery access for viewers.** This is the big change from the service-
+   account model: each person now queries BigQuery as *themselves*, not as
+   `bs-dashboard@…`. Every B&S Google account that should see the dashboard
+   needs, on project `commanding-air-450109-p0`:
+   - **BigQuery Data Viewer** on dataset `analytics_287404213` (or project-wide), and
+   - **BigQuery Job User** on the project (so they can run queries).
+   Without both, queries come back 403 and the tab shows "Query failed".
+4. **Delete `data/` from the live repo.** This build already removes it. If the
+   old JSON is still in your Pages history, remove it so the numbers aren't
+   publicly fetchable — the login only protects data that isn't also sitting in
+   a public file.
 
-1. Drop a copy of the `bs-dashboard` service account key JSON in this folder or
-   `C:\Users\dlawrence\Documents\BQ` — the script auto-discovers it. The
-   `.gitignore` blocks key files from being committed; keep it that way.
-2. `py -m pip install google-cloud-bigquery`
-3. Run `refresh.bat` (or `py refresh_data.py`). Writes everything to `data/`.
-4. Commit + push via GitHub Desktop. Enable GitHub Pages on the repo.
+## Using it
 
-Local preview: `py -m http.server` in this folder, then http://localhost:8000.
-`py make_sample_data.py` fills `data/` with fake numbers if you want to see the
-UI before the first real refresh.
+- Sign in with your B&S Google account.
+- **Period** selector: Last full week (default), Last 4 / 13 / 26 weeks, or a
+  custom From→To range. Everything ("vs prior") compares your selected period
+  against the immediately preceding period of equal length. The weekly summary
+  tabs snap the comparison to whole Mon–Sun weeks.
+- **↻ Refresh** re-runs the current period against BigQuery (use it to pull
+  today's newest data mid-session).
+- Tabs load lazily and results are cached per period, so switching tabs is
+  instant and only the tabs you open get queried.
 
-## Refresh & cost
+## Notes on cost / speed
 
-`refresh_data.py` runs 7 queries. The weekly/monthly/daily-focus queries scan
-`view_item` + `purchase` events from 2023-04-03 — that full-history scan runs
-every refresh, so this one is best scheduled **weekly** (Task Scheduler, Monday
-morning) rather than daily. Item-level, breakdown and channel queries only scan
-2 weeks / 28 days / 14 days.
+- The Category tab (default) runs 2 queries: a ~15-month weekly series and a
+  ~2-year monthly seasonal mix.
+- The focus tabs (Garden/Sofas/…) share one heavier query: ~26 months of daily
+  focus data (needed for the 56-week view plus the 364-day YoY overlay). It runs
+  once on first open and is cached. Widening the custom range widens the scan.
+- These are bounded per-range scans, not the full-history rebuild the old
+  refresh script did, so live querying is fine cost-wise for interactive use.
 
-Use `py refresh_data.py --start 2024-01-01` to shorten the history window and
-cut scan cost.
+## Auth internals
 
-## Tweaking the focus tabs
-
-Edit the `FOCUS` dict at the top of `refresh_data.py` — key, label, and which
-GA4 field/value it matches (`item_category` or `item_category2`). The frontend
-picks up tabs automatically from `meta.json`.
+GIS token client, `bigquery.readonly` scope, `hd` hint + an explicit
+`endsWith('@barkerandstonehouse.co.uk')` check on the userinfo email (the `hd`
+hint alone isn't enforcement). Token refresh uses the `tokenInFlight`
+promise-coalescing pattern so parallel tab queries don't trigger multiple popups.

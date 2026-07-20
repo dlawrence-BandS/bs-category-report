@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>B&amp;S | Item Category Report</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --ink:#22303c; --ink-soft:#5a6b7a; --paper:#f2f0eb; --card:#ffffff;
@@ -57,16 +58,59 @@
   .loading{padding:60px;text-align:center;color:var(--ink-soft);font-family:var(--f-disp);font-size:16px}
   .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media(max-width:900px){.twocol{grid-template-columns:1fr}}
+  /* --- auth gate + range bar (added for live/OAuth build) --- */
+  #gate{display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--head)}
+  .gatecard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:34px 40px;max-width:420px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+  .gatecard .brandbig{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
+  .gatecard h1{font-family:var(--f-disp);font-weight:400;font-size:26px;color:var(--head);margin-bottom:10px}
+  .gatesub{font-size:12.5px;color:var(--ink-soft);margin-bottom:20px;line-height:1.5}
+  .gbtn{background:var(--head-2);color:#fff;border:none;border-radius:6px;padding:11px 20px;font:600 13px var(--f-data);cursor:pointer;letter-spacing:.3px}
+  .gbtn:hover{background:var(--head)}
+  .gatemsg{font-size:11.5px;color:var(--down);margin-top:16px;min-height:14px;line-height:1.5}
+  .rangebar{background:#fff;border-bottom:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rangebar label{font-size:11px;color:var(--ink-soft);font-weight:600}
+  .rangebar .dash{color:var(--ink-soft)}
+  .rangebar .spacer{flex:1}
+  .rangebar .customwrap{display:flex;align-items:center;gap:6px}
+  input[type=date]{border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:12.5px var(--f-data);background:#fff;color:var(--ink)}
 </style>
 </head>
 <body>
-<header>
-  <span class="brand">Barker and Stonehouse</span>
-  <h1>Item Category Report</h1>
-  <span class="meta" id="metaLine">loading…</span>
-</header>
-<nav id="nav"></nav>
-<main id="main"><div class="loading">Loading data…</div></main>
+<div id="gate">
+  <div class="gatecard">
+    <div class="brandbig">Barker &amp; Stonehouse</div>
+    <h1>Item Category Report</h1>
+    <p class="gatesub">Sign in with your Barker &amp; Stonehouse Google account to view live data.</p>
+    <button id="signinBtn" class="gbtn">Sign in with Google</button>
+    <p id="gateMsg" class="gatemsg"></p>
+  </div>
+</div>
+<div id="app" style="display:none">
+  <header>
+    <span class="brand">Barker and Stonehouse</span>
+    <h1>Item Category Report</h1>
+    <span class="meta" id="metaLine">…</span>
+  </header>
+  <div class="rangebar">
+    <label>Period</label>
+    <select id="preset">
+      <option value="w1">Last full week</option>
+      <option value="w4">Last 4 weeks</option>
+      <option value="w13">Last 13 weeks</option>
+      <option value="w26">Last 26 weeks</option>
+      <option value="custom">Custom…</option>
+    </select>
+    <span id="customWrap" class="customwrap">
+      <input type="date" id="fromD"> <span class="dash">→</span> <input type="date" id="toD">
+      <button class="btn" id="applyBtn">Apply</button>
+    </span>
+    <button class="btn" id="refreshBtn" title="Re-query the current period from BigQuery">↻ Refresh</button>
+    <span class="spacer"></span>
+    <button class="btn" id="signoutBtn">Sign out</button>
+  </div>
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
 
 <script>
 "use strict";
@@ -99,47 +143,381 @@ const groupBy = (arr, f) => arr.reduce((m, x) => ((m[f(x)] = m[f(x)] || []).push
 const shortDate = s => { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
 const monthLbl = s => new Date(s + "T00:00:00").toLocaleDateString("en-GB", {month:"short", year:"2-digit"});
 
-/* ============================== state ============================== */
-let D = {}; // all datasets
-const TABS = [];
+/* ============================== config ============================== */
+const CLIENT_ID = "PASTE_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com"; // <-- set this. The same client ID you use on bs-search works if https://dlawrence-bands.github.io is an authorised JavaScript origin on it.
+const ALLOWED_DOMAIN = "barkerandstonehouse.co.uk";
+const PROJECT = "commanding-air-450109-p0";
+const DATASET = "analytics_287404213";
+const LOCATION = "europe-west2";
+const SCOPES = "openid email https://www.googleapis.com/auth/bigquery.readonly";
+const FOCUS = {
+  garden:        {label:"Garden",        field:"item_category",  value:"GARDEN"},
+  sofas:         {label:"Sofas",         field:"item_category2", value:"SOFAS"},
+  dining_tables: {label:"Dining Tables", field:"item_category2", value:"DINING TABLES"},
+  dining_chairs: {label:"Dining Chairs", field:"item_category2", value:"DINING CHAIRS"},
+  mattresses:    {label:"Mattresses",    field:"item_category2", value:"MATTRESSES"},
+};
+const FOCUS_LABELS = Object.fromEntries(Object.entries(FOCUS).map(([k, v]) => [k, v.label]));
+const TREND_WEEKS = 65;    // weekly trend-series window
+const FOCUS_WEEKS = 112;   // daily-focus window (covers 56-wk display + 364d YoY overlay)
+const MONTHLY_DAYS = 730;  // seasonal monthly-mix window (~2y)
 
-async function boot(){
-  const files = ["meta","weekly_category","weekly_subcategory","monthly_category",
-                 "daily_focus","items_wow","focus_breakdown","channels"];
+/* ============================== date helpers ============================== */
+const parseD = s => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m-1, d)); };
+const fmtD = dt => dt.toISOString().slice(0, 10);
+const addD = (s, n) => { const dt = parseD(s); dt.setUTCDate(dt.getUTCDate() + n); return fmtD(dt); };
+const sfx = s => s.replace(/-/g, "");
+const minD = (a, b) => a < b ? a : b;
+const todayStr = () => fmtD(new Date());
+const mondayStr = s => { const dt = parseD(s); const wd = (dt.getUTCDay() + 6) % 7; dt.setUTCDate(dt.getUTCDate() - wd); return fmtD(dt); };
+function weeksBetween(a, b){ let m = mondayStr(a); const out = []; while (m <= b) { out.push(m); m = addD(m, 7); } return out; }
+function lastFullWeek(){ const mon = mondayStr(todayStr()); return {from: addD(mon, -7), to: addD(mon, -1)}; }
+function lastNWeeks(n){ const mon = mondayStr(todayStr()); return {from: addD(mon, -7*n), to: addD(mon, -1)}; }
+
+/* ============================== auth (GIS token client + BigQuery readonly) ============================== */
+let tokenClient = null, accessToken = null, tokenExp = 0, tokenInFlight = null, signedInEmail = null;
+function initTokenClient(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID, scope: SCOPES, hd: ALLOWED_DOMAIN, callback: () => {},
+  });
+}
+function requestToken(prompt){
+  return new Promise((resolve, reject) => {
+    tokenClient.callback = resp => {
+      if (resp.error) return reject(new Error(resp.error));
+      accessToken = resp.access_token;
+      tokenExp = Date.now() + ((resp.expires_in ? resp.expires_in * 1000 : 3600000) - 60000);
+      resolve(accessToken);
+    };
+    tokenClient.error_callback = err => reject(err instanceof Error ? err : new Error((err && err.type) || "sign-in error"));
+    tokenClient.requestAccessToken({prompt: prompt || ""});
+  });
+}
+async function getToken(){                                   // silent refresh, coalesced
+  if (accessToken && Date.now() < tokenExp) return accessToken;
+  if (tokenInFlight) return tokenInFlight;
+  tokenInFlight = requestToken("").finally(() => { tokenInFlight = null; });
+  return tokenInFlight;
+}
+async function fetchEmail(){
+  const t = await getToken();
+  const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {headers:{Authorization: "Bearer " + t}});
+  if (!r.ok) return null;
+  return (await r.json()).email;
+}
+function showGate(msg){
+  document.getElementById("app").style.display = "none";
+  document.getElementById("gate").style.display = "flex";
+  document.getElementById("gateMsg").textContent = msg || "";
+}
+function showApp(){
+  document.getElementById("gate").style.display = "none";
+  document.getElementById("app").style.display = "block";
+}
+async function signIn(){
   try {
-    const res = await Promise.all(files.map(f => fetch("data/" + f + ".json").then(r => {
-      if (!r.ok) throw new Error(f + ".json missing (" + r.status + ")");
-      return r.json();
-    })));
-    files.forEach((f, i) => D[f] = res[i]);
+    await requestToken("consent");
+    const email = await fetchEmail();
+    if (!email || !email.toLowerCase().endsWith("@" + ALLOWED_DOMAIN)) {
+      accessToken = null; tokenExp = 0;
+      return showGate("Restricted to Barker & Stonehouse Google accounts. You signed in as " + (email || "an unknown account") + ".");
+    }
+    signedInEmail = email;
+    showApp();
+    buildApp();
   } catch (e) {
-    document.getElementById("main").innerHTML =
-      `<div class="loading">Could not load data files.<br><small>${e.message}. Run <code>py refresh_data.py</code> (or <code>py make_sample_data.py</code> for a preview), and serve over http — e.g. <code>py -m http.server</code>.</small></div>`;
-    return;
+    showGate("Sign-in was cancelled or failed. " + (e.message || ""));
   }
+}
+function signOut(){ accessToken = null; tokenExp = 0; signedInEmail = null; location.reload(); }
+function initAuth(){
+  const start = () => { initTokenClient(); document.getElementById("signinBtn").onclick = signIn; showGate(""); };
+  if (window.google && google.accounts && google.accounts.oauth2) start();
+  else { const iv = setInterval(() => { if (window.google && google.accounts && google.accounts.oauth2) { clearInterval(iv); start(); } }, 150); }
+}
+
+/* ============================== BigQuery REST ============================== */
+async function bq(sql){
+  const base = "https://bigquery.googleapis.com/bigquery/v2/projects/" + PROJECT;
+  const token = await getToken();
+  const auth = {Authorization: "Bearer " + token};
+  let res = await fetch(base + "/queries", {
+    method: "POST", headers: {...auth, "Content-Type": "application/json"},
+    body: JSON.stringify({query: sql, useLegacySql: false, location: LOCATION, timeoutMs: 30000, maxResults: 20000}),
+  });
+  if (!res.ok) throw new Error("BigQuery " + res.status + ": " + (await res.text()).slice(0, 300));
+  let data = await res.json();
+  const jobId = data.jobReference.jobId;
+  while (!data.jobComplete) {                                 // poll long-running jobs
+    await new Promise(r => setTimeout(r, 700));
+    const g = await fetch(base + "/queries/" + jobId + "?location=" + LOCATION + "&maxResults=20000&timeoutMs=30000", {headers: auth});
+    if (!g.ok) throw new Error("BigQuery " + g.status + ": " + (await g.text()).slice(0, 300));
+    data = await g.json();
+  }
+  const schema = data.schema.fields;
+  let rows = data.rows || [];
+  let pageToken = data.pageToken;
+  while (pageToken) {                                          // page through large results
+    const g = await fetch(base + "/queries/" + jobId + "?location=" + LOCATION + "&maxResults=20000&pageToken=" + pageToken, {headers: auth});
+    const pg = await g.json();
+    rows = rows.concat(pg.rows || []);
+    pageToken = pg.pageToken;
+  }
+  const numeric = new Set(["INTEGER","INT64","FLOAT","FLOAT64","NUMERIC","BIGNUMERIC"]);
+  return rows.map(r => {
+    const o = {};
+    schema.forEach((f, i) => { let v = r.f[i].v; if (v !== null && numeric.has(f.type)) v = Number(v); o[f.name] = v; });
+    return o;
+  });
+}
+
+/* ============================== SQL builders (ported from refresh_data.py) ============================== */
+const TBL = "`" + PROJECT + "." + DATASET + ".events_*`";
+const SID = "CONCAT(user_pseudo_id, '-', CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING))";
+function focusCase(){
+  return "CASE " + Object.entries(FOCUS).map(([k, f]) =>
+    "WHEN UPPER(TRIM(i." + f.field + ")) = '" + f.value + "' THEN '" + k + "'").join(" ") + " ELSE NULL END";
+}
+function sqlWeekly(dim, a, b){ return `
+WITH v AS (
+  SELECT DATE_TRUNC(PARSE_DATE('%Y%m%d', event_date), WEEK(MONDAY)) AS wk,
+    IFNULL(NULLIF(TRIM(i.${dim}), ''), '(not set)') AS cat, ${SID} AS sid, i.item_name AS nm
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+p AS (
+  SELECT DATE_TRUNC(PARSE_DATE('%Y%m%d', event_date), WEEK(MONDAY)) AS wk,
+    IFNULL(NULLIF(TRIM(i.${dim}), ''), '(not set)') AS cat,
+    ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+va AS (SELECT wk, cat, COUNT(DISTINCT sid) AS s, COUNT(DISTINCT nm) AS iv FROM v GROUP BY wk, cat),
+pa AS (SELECT wk, cat, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p GROUP BY wk, cat)
+SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(va.wk, pa.wk)) AS w, COALESCE(va.cat, pa.cat) AS c,
+  IFNULL(va.s,0) AS s, IFNULL(va.iv,0) AS iv, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r
+FROM va FULL OUTER JOIN pa USING (wk, cat) ORDER BY w, c`; }
+function sqlMonthly(a, b){ return `
+SELECT EXTRACT(MONTH FROM PARSE_DATE('%Y%m%d', event_date)) AS m,
+  IFNULL(NULLIF(TRIM(i.item_category), ''), '(not set)') AS c,
+  COUNT(DISTINCT ${SID}) AS s
+FROM ${TBL}, UNNEST(items) AS i
+WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+GROUP BY m, c ORDER BY m, c`; }
+function sqlDailyFocus(a, b){ const fc = focusCase(); return `
+WITH v AS (
+  SELECT PARSE_DATE('%Y%m%d', event_date) AS d, ${fc} AS k, ${SID} AS sid
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+p AS (
+  SELECT PARSE_DATE('%Y%m%d', event_date) AS d, ${fc} AS k,
+    ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+va AS (SELECT d, k, COUNT(DISTINCT sid) AS s FROM v WHERE k IS NOT NULL GROUP BY d, k),
+pa AS (SELECT d, k, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p WHERE k IS NOT NULL GROUP BY d, k)
+SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(va.d, pa.d)) AS d, COALESCE(va.k, pa.k) AS k,
+  IFNULL(va.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r
+FROM va FULL OUTER JOIN pa USING (d, k) ORDER BY d, k`; }
+function sqlItems(a, b, curStart){ const fc = focusCase(); return `
+WITH v AS (
+  SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
+    TRIM(i.item_name) AS nm, ${SID} AS sid
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
+p AS (
+  SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
+    TRIM(i.item_name) AS nm, ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
+attrs AS (
+  SELECT TRIM(i.item_name) AS nm,
+    APPROX_TOP_COUNT(i.item_id, 1)[OFFSET(0)].value AS id,
+    APPROX_TOP_COUNT(IFNULL(NULLIF(TRIM(i.item_category), ''), '(not set)'), 1)[OFFSET(0)].value AS c,
+    APPROX_TOP_COUNT(IFNULL(NULLIF(TRIM(i.item_category2), ''), '(not set)'), 1)[OFFSET(0)].value AS c2,
+    APPROX_TOP_COUNT(NULLIF(TRIM(i.item_brand), ''), 1)[OFFSET(0)].value AS b,
+    APPROX_TOP_COUNT(${fc}, 1)[OFFSET(0)].value AS k
+  FROM ${TBL}, UNNEST(items) AS i
+  WHERE event_name IN ('view_item', 'purchase') AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != '' GROUP BY nm),
+va AS (SELECT pd, nm, COUNT(DISTINCT sid) AS s FROM v GROUP BY pd, nm),
+pa AS (SELECT pd, nm, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p GROUP BY pd, nm)
+SELECT COALESCE(va.pd, pa.pd) AS pd, COALESCE(va.nm, pa.nm) AS nm,
+  IFNULL(va.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r,
+  attrs.id, attrs.c, attrs.c2, attrs.b, attrs.k
+FROM va FULL OUTER JOIN pa USING (pd, nm)
+LEFT JOIN attrs ON attrs.nm = COALESCE(va.nm, pa.nm)`; }
+function sqlBreakdown(a, b){ const fc = focusCase(); return `
+SELECT FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%Y%m%d', event_date)) AS d, ${fc} AS k,
+  IFNULL(NULLIF(TRIM(i.item_brand), ''), SPLIT(TRIM(i.item_name), ' ')[SAFE_OFFSET(0)]) AS rg,
+  IFNULL(NULLIF(TRIM(i.item_category2), ''), '(not set)') AS c2,
+  ROUND(SUM(IFNULL(i.item_revenue, 0)), 2) AS r
+FROM ${TBL}, UNNEST(items) AS i
+WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}' AND ${fc} IS NOT NULL
+GROUP BY d, k, rg, c2 HAVING r > 0 ORDER BY d`; }
+function sqlChannels(a, b){ return `
+WITH s AS (
+  SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
+    IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch, ${SID} AS sid
+  FROM ${TBL}
+  WHERE event_name = 'session_start' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+p AS (
+  SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
+    IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch,
+    ecommerce.transaction_id AS tid, IFNULL(ecommerce.purchase_revenue, 0) AS rev
+  FROM ${TBL}
+  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+sa AS (SELECT d, ch, COUNT(DISTINCT sid) AS s FROM s GROUP BY d, ch),
+pa AS (SELECT d, ch, COUNT(DISTINCT tid) AS t, ROUND(SUM(rev), 2) AS r FROM p GROUP BY d, ch)
+SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(sa.d, pa.d)) AS d, COALESCE(sa.ch, pa.ch) AS ch,
+  IFNULL(sa.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.r,0) AS r
+FROM sa FULL OUTER JOIN pa USING (d, ch) ORDER BY d, ch`; }
+
+/* ============================== period + live data loading ============================== */
+let D = {};
+const TABS = [];
+const cache = {};
+const rendered = {};
+let curPeriod = null;
+let activeTab = null;
+
+function setPeriod(from, to){
+  const lenDays = Math.round((parseD(to) - parseD(from)) / 86400000) + 1;
+  const prev_end = addD(from, -1);
+  const prev_start = addD(from, -lenDays);
+  curPeriod = {
+    from, to, prev_start, prev_end, lenDays,
+    weeklyStart: mondayStr(minD(prev_start, addD(to, -7 * TREND_WEEKS))),
+    focusStart: minD(prev_start, addD(to, -7 * FOCUS_WEEKS)),
+    monthlyStart: addD(to, -MONTHLY_DAYS),
+  };
+  D.meta = {
+    cur_start: from, cur_end: to, prev_start, prev_end,
+    cur_weeks: weeksBetween(from, to), prev_weeks: weeksBetween(prev_start, prev_end),
+    focus: FOCUS_LABELS, generated: "live",
+  };
+  for (const k in cache) delete cache[k];
+  for (const k in rendered) delete rendered[k];
   document.getElementById("metaLine").textContent =
-    `Week ${shortDate(D.meta.cur_start)} – ${shortDate(D.meta.cur_end)} vs prior · refreshed ${D.meta.generated}`;
+    from + " – " + to + "  vs  " + prev_start + " – " + prev_end + "  ·  live  ·  " + (signedInEmail || "");
+}
 
-  TABS.push({id:"cat", label:"Category Summary (Weekly)", render: renderCategory});
-  TABS.push({id:"sub", label:"Sub-Category Summary (Weekly)", render: renderSubcategory});
+const LOADERS = {
+  weekly_category: () => bq(sqlWeekly("item_category", sfx(curPeriod.weeklyStart), sfx(curPeriod.to))),
+  weekly_subcategory: async () => {
+    const rows = await bq(sqlWeekly("item_category2", sfx(curPeriod.weeklyStart), sfx(curPeriod.to)));
+    const tot = {}; rows.forEach(r => tot[r.c] = (tot[r.c] || 0) + (r.r || 0));
+    const keep = new Set(Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, 40).map(x => x[0]));
+    const agg = {};
+    rows.forEach(r => {
+      const c = keep.has(r.c) ? r.c : "Other";
+      const key = r.w + "|" + c;
+      const a = agg[key] || (agg[key] = {w: r.w, c, s: 0, iv: 0, t: 0, ip: 0, r: 0});
+      a.s += r.s; a.iv += r.iv; a.t += r.t; a.ip += r.ip; a.r += (r.r || 0);
+    });
+    return Object.values(agg).map(a => ({...a, r: Math.round(a.r * 100) / 100}));
+  },
+  monthly_category: () => bq(sqlMonthly(sfx(curPeriod.monthlyStart), sfx(curPeriod.to))),
+  daily_focus: () => bq(sqlDailyFocus(sfx(curPeriod.focusStart), sfx(curPeriod.to))),
+  focus_breakdown: () => bq(sqlBreakdown(sfx(curPeriod.from), sfx(curPeriod.to))),
+  channels: () => bq(sqlChannels(sfx(curPeriod.prev_start), sfx(curPeriod.to))),
+  items_wow: async () => {
+    const rows = await bq(sqlItems(sfx(curPeriod.prev_start), sfx(curPeriod.to), curPeriod.from));
+    const items = {};
+    rows.forEach(r => {
+      const it = items[r.nm] || (items[r.nm] = {n: r.nm, id: r.id, c: r.c, c2: r.c2, b: r.b, k: r.k,
+        s: 0, t: 0, ip: 0, r: 0, s_p: 0, t_p: 0, ip_p: 0, r_p: 0});
+      const sk = r.pd === "cur" ? "" : "_p";
+      it["s" + sk] = r.s; it["t" + sk] = r.t; it["ip" + sk] = r.ip; it["r" + sk] = Math.round((r.r || 0) * 100) / 100;
+      ["id","c","c2","b","k"].forEach(f => { if (!it[f] && r[f]) it[f] = r[f]; });
+    });
+    return Object.values(items)
+      .filter(x => x.s > 0 || x.r > 0 || x.r_p > 0)
+      .sort((a, b) => (b.s - a.s) || (b.r - a.r))
+      .slice(0, 1500);
+  },
+};
+
+const NEEDS = {
+  cat: ["weekly_category", "monthly_category"],
+  sub: ["weekly_subcategory"],
+  items: ["items_wow"],
+  detail: ["items_wow", "channels"],
+};
+function needsFor(id){ return id.indexOf("f_") === 0 ? ["daily_focus", "items_wow", "focus_breakdown"] : (NEEDS[id] || []); }
+async function ensureData(id){
+  const missing = needsFor(id).filter(n => !cache[n]);
+  await Promise.all(missing.map(async n => { cache[n] = await LOADERS[n](); }));
+  needsFor(id).forEach(n => D[n] = cache[n]);
+}
+
+/* ============================== app shell ============================== */
+function periodFromControls(){
+  const v = document.getElementById("preset").value;
+  if (v === "custom") {
+    const f = document.getElementById("fromD").value, t = document.getElementById("toD").value;
+    if (f && t && f <= t) return [f, t];
+    const w = lastFullWeek(); return [w.from, w.to];
+  }
+  if (v === "w4")  { const p = lastNWeeks(4);  return [p.from, p.to]; }
+  if (v === "w13") { const p = lastNWeeks(13); return [p.from, p.to]; }
+  if (v === "w26") { const p = lastNWeeks(26); return [p.from, p.to]; }
+  const p = lastFullWeek(); return [p.from, p.to];
+}
+function wireControls(){
+  const preset = document.getElementById("preset");
+  const custom = document.getElementById("customWrap");
+  const syncVis = () => { custom.style.display = preset.value === "custom" ? "flex" : "none"; };
+  preset.onchange = () => { syncVis(); if (preset.value !== "custom") applyControls(); };
+  document.getElementById("applyBtn").onclick = applyControls;
+  document.getElementById("refreshBtn").onclick = () => {
+    for (const k in cache) delete cache[k];
+    for (const k in rendered) delete rendered[k];
+    show(activeTab || TABS[0].id);
+  };
+  document.getElementById("signoutBtn").onclick = signOut;
+  document.getElementById("fromD").value = curPeriod.from;
+  document.getElementById("toD").value = curPeriod.to;
+  syncVis();
+}
+function applyControls(){
+  setPeriod(...periodFromControls());
+  document.getElementById("fromD").value = curPeriod.from;
+  document.getElementById("toD").value = curPeriod.to;
+  show(activeTab || TABS[0].id);
+}
+function buildApp(){
+  setPeriod(...periodFromControls());
+  TABS.length = 0;
+  TABS.push({id: "cat", label: "Category Summary (Weekly)", render: renderCategory});
+  TABS.push({id: "sub", label: "Sub-Category Summary (Weekly)", render: renderSubcategory});
   for (const [k, label] of Object.entries(D.meta.focus))
-    TABS.push({id:"f_"+k, label: label + " Sales", render: () => renderFocus(k, label)});
-  TABS.push({id:"items", label:"Item Ranges & Item Sales", render: renderItems});
-  TABS.push({id:"detail", label:"Item Detail & Channels", render: renderDetail});
-
+    TABS.push({id: "f_" + k, label: label + " Sales", render: () => renderFocus(k, label)});
+  TABS.push({id: "items", label: "Item Ranges & Item Sales", render: renderItems});
+  TABS.push({id: "detail", label: "Item Detail & Channels", render: renderDetail});
   const nav = document.getElementById("nav");
   nav.innerHTML = TABS.map(t => `<button data-t="${t.id}">${t.label}</button>`).join("");
   nav.onclick = e => { const b = e.target.closest("button"); if (b) show(b.dataset.t); };
   document.getElementById("main").innerHTML =
     TABS.map(t => `<section class="tabpage" id="pg_${t.id}"></section>`).join("");
+  wireControls();
   show(TABS[0].id);
 }
 
-const rendered = {};
-function show(id){
+async function show(id){
+  activeTab = id;
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === id));
   document.querySelectorAll(".tabpage").forEach(p => p.classList.toggle("on", p.id === "pg_" + id));
-  if (!rendered[id]) { rendered[id] = true; TABS.find(t => t.id === id).render(); }
+  if (rendered[id]) return;
+  const pg = document.getElementById("pg_" + id);
+  pg.innerHTML = `<div class="loading">Querying BigQuery…</div>`;
+  try {
+    await ensureData(id);
+    TABS.find(t => t.id === id).render();
+    rendered[id] = true;
+  } catch (e) {
+    pg.innerHTML = `<div class="loading">Query failed.<br><small>${(e && e.message) || e}</small></div>`;
+  }
 }
 
 /* ============================== shared builders ============================== */
@@ -149,8 +527,8 @@ function kpiRow(items){
 }
 
 function weeklyKpis(rows){
-  const cs = D.meta.cur_start, ps = D.meta.prev_start;
-  const cur = rows.filter(r => r.w === cs), prev = rows.filter(r => r.w === ps);
+  const cw = D.meta.cur_weeks, pw = D.meta.prev_weeks;
+  const cur = rows.filter(r => cw.includes(r.w)), prev = rows.filter(r => pw.includes(r.w));
   const m = a => ({s: sum(a, r => r.s), t: sum(a, r => r.t), ip: sum(a, r => r.ip), r: sum(a, r => r.r), iv: sum(a, r => r.iv)});
   const c = m(cur), p = m(prev);
   const cvr = c.s ? c.t/c.s : 0, pcvr = p.s ? p.t/p.s : 0;
@@ -209,11 +587,12 @@ function weeklyLines(canvasId, rows, metric, topN, fmt){
 
 // KPI table with WoW deltas + heatmap, for category/subcategory summaries
 function kpiTable(rows, dimLabel){
-  const cs = D.meta.cur_start, ps = D.meta.prev_start;
-  const cur = groupBy(rows.filter(r => r.w === cs), r => r.c);
-  const prev = groupBy(rows.filter(r => r.w === ps), r => r.c);
+  const cw = D.meta.cur_weeks, pw = D.meta.prev_weeks;
+  const aggByCat = arr => { const m = {}; arr.forEach(r => { const o = m[r.c] || (m[r.c] = {s:0, iv:0, t:0, ip:0, r:0}); o.s += r.s; o.iv += r.iv; o.t += r.t; o.ip += r.ip; o.r += (r.r || 0); }); return m; };
+  const cur = aggByCat(rows.filter(r => cw.includes(r.w)));
+  const prev = aggByCat(rows.filter(r => pw.includes(r.w)));
   const cats = Object.keys(cur).map(c => {
-    const a = cur[c][0], b = (prev[c] || [{}])[0] || {};
+    const a = cur[c], b = prev[c] || {};
     return {c, s:a.s, t:a.t, ip:a.ip, r:a.r, cvr: a.s ? a.t/a.s : 0, aov: a.t ? a.r/a.t : 0,
             s_p:b.s||0, t_p:b.t||0, r_p:b.r||0, cvr_p: b.s ? b.t/b.s : 0, aov_p: b.t ? b.r/b.t : 0};
   }).sort((a, b) => b.r - a.r);
@@ -290,8 +669,8 @@ function renderSubcategory(){
     <div class="card"><h2>Sessions by sub-category <span class="sub">weekly, top 6</span></h2>
       <div class="body chartbox"><canvas id="c_sub_s"></canvas></div></div>`;
   // trim the table to top 15 subcats by last-week revenue
-  const cs = D.meta.cur_start;
-  const top15 = Object.entries(groupBy(rows.filter(r => r.w === cs), r => r.c))
+  const cw = D.meta.cur_weeks;
+  const top15 = Object.entries(groupBy(rows.filter(r => cw.includes(r.w)), r => r.c))
     .map(([c, a]) => [c, sum(a, r => r.r)]).sort((a, b) => b[1] - a[1]).slice(0, 15).map(x => x[0]);
   document.getElementById("subTable").innerHTML =
     kpiTable(rows.filter(r => top15.includes(r.c)), "Sub-category");
@@ -560,7 +939,7 @@ function exportCsv(rows, fields, headers, filename){
   a.download = filename; a.click(); URL.revokeObjectURL(a.href);
 }
 
-boot();
+initAuth();
 </script>
 </body>
 </html>
