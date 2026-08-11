@@ -1,945 +1,1788 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>B&amp;S | Item Category Report</title>
+<title>B&S — Product Attribute Sales Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
-  :root{
-    --ink:#22303c; --ink-soft:#5a6b7a; --paper:#f2f0eb; --card:#ffffff;
-    --head:#1f3d33; --head-2:#2a5244; --line:#e3ded4; --accent:#b97742;
-    --up:#1e7d4f; --down:#c0392b; --chip:#eef2ef;
-    --f-data:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
-    --f-disp:Georgia,"Times New Roman",serif;
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy:        #1d3c6e;
+    --navy-deep:   #10254a;
+    --navy-ink:    #0f1f3d;
+    --teal:        #1a6b7c;
+    --teal-deep:   #135663;
+    --brass:       #b08d4f;
+    --brass-soft:  rgba(176,141,79,0.45);
+    --brass-faint: rgba(176,141,79,0.18);
+    --paper:       #f6f4ef;
+    --card:        #ffffff;
+    --rule:        #e7e2d7;
+    --rule-soft:   #efebe1;
+    --ink:         #182848;
+    --ink-2:       #3c4a6b;
+    --ink-3:       #8089a0;
+    --white:       #ffffff;
+    --green:       #1a7a4a;
+    --green-lt:    #e9f5ef;
+    --red:         #b83232;
+    --red-lt:      #faeceb;
+    --radius:      10px;
+    --radius-sm:   6px;
+    --shadow:      0 1px 2px rgba(23,40,72,0.04), 0 4px 16px rgba(23,40,72,0.05);
+    --shadow-lift: 0 2px 4px rgba(23,40,72,0.05), 0 10px 28px rgba(23,40,72,0.09);
+    --serif:       'Playfair Display', Georgia, serif;
+    --sans:        'Inter', -apple-system, sans-serif;
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--paper);color:var(--ink);font-family:var(--f-data);font-size:13px}
-  header{background:var(--head);color:#fff;padding:14px 22px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-  header h1{font-family:var(--f-disp);font-weight:400;font-size:20px;letter-spacing:.3px}
-  header .brand{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;opacity:.85;border-right:1px solid rgba(255,255,255,.3);padding-right:14px}
-  header .meta{margin-left:auto;font-size:11px;opacity:.75}
-  nav{background:#fff;border-bottom:1px solid var(--line);padding:0 12px;display:flex;overflow-x:auto;position:sticky;top:0;z-index:20}
-  nav button{background:none;border:none;border-bottom:3px solid transparent;padding:12px 14px;font:600 12.5px var(--f-data);color:var(--ink-soft);cursor:pointer;white-space:nowrap}
-  nav button:hover{color:var(--ink)}
-  nav button.on{color:var(--head);border-bottom-color:var(--accent)}
-  main{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
-  .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft)}
-  .kpi .v{font-family:var(--f-disp);font-size:23px;margin:2px 0}
-  .kpi .d{font-size:11px;font-weight:600}
-  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-soft)}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:16px;overflow:hidden}
-  .card h2{background:var(--head-2);color:#fff;font:600 12.5px var(--f-data);letter-spacing:.4px;padding:9px 14px;display:flex;align-items:center;gap:10px}
-  .card h2 .sub{font-weight:400;opacity:.75;font-size:11px}
-  .card .body{padding:12px 14px}
-  .chartbox{position:relative;height:320px}
-  .chartbox.tall{height:380px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th{text-align:right;padding:7px 8px;border-bottom:2px solid var(--line);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);cursor:pointer;user-select:none;white-space:nowrap}
-  th:first-child,td:first-child{text-align:left}
-  th.sorton{color:var(--head)}
-  td{padding:6px 8px;border-bottom:1px solid #f0ede6;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  td.name{max-width:320px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
-  tr:hover td{background:#faf8f3}
-  tr.total td{font-weight:700;border-top:2px solid var(--line)}
-  .delta{font-size:10.5px;font-weight:600;margin-left:5px}
-  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-  .controls label{font-size:11px;color:var(--ink-soft);font-weight:600}
-  select,input[type=search]{border:1px solid var(--line);border-radius:5px;padding:7px 9px;font:12.5px var(--f-data);background:#fff;color:var(--ink)}
-  input[type=search]{min-width:230px}
-  .btn{border:1px solid var(--line);background:#fff;border-radius:5px;padding:7px 12px;font:600 12px var(--f-data);cursor:pointer;color:var(--ink)}
-  .btn:hover{border-color:var(--accent);color:var(--accent)}
-  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;font-size:11.5px;color:var(--ink-soft)}
-  .note{font-size:11px;color:var(--ink-soft);padding:8px 14px;border-top:1px solid #f0ede6}
-  .tabpage{display:none}.tabpage.on{display:block}
-  .loading{padding:60px;text-align:center;color:var(--ink-soft);font-family:var(--f-disp);font-size:16px}
-  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
-  /* --- auth gate + range bar (added for live/OAuth build) --- */
-  #gate{display:none;min-height:100vh;align-items:center;justify-content:center;background:var(--head)}
-  .gatecard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:34px 40px;max-width:420px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-  .gatecard .brandbig{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
-  .gatecard h1{font-family:var(--f-disp);font-weight:400;font-size:26px;color:var(--head);margin-bottom:10px}
-  .gatesub{font-size:12.5px;color:var(--ink-soft);margin-bottom:20px;line-height:1.5}
-  .gbtn{background:var(--head-2);color:#fff;border:none;border-radius:6px;padding:11px 20px;font:600 13px var(--f-data);cursor:pointer;letter-spacing:.3px}
-  .gbtn:hover{background:var(--head)}
-  .gatemsg{font-size:11.5px;color:var(--down);margin-top:16px;min-height:14px;line-height:1.5}
-  .rangebar{background:#fff;border-bottom:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .rangebar label{font-size:11px;color:var(--ink-soft);font-weight:600}
-  .rangebar .dash{color:var(--ink-soft)}
-  .rangebar .spacer{flex:1}
-  .rangebar .customwrap{display:flex;align-items:center;gap:6px}
-  input[type=date]{border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:12.5px var(--f-data);background:#fff;color:var(--ink)}
+
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--sans); background: var(--paper); color: var(--ink); font-size: 14px; line-height: 1.55; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--navy); color: var(--white); }
+
+  button, input, select { font-family: var(--sans); }
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+    color: var(--white);
+    padding: 0 44px;
+    height: 66px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid var(--brass-soft);
+    box-shadow: 0 6px 24px rgba(16,37,74,0.28);
+  }
+  .logo { font-family: var(--serif); font-size: 19px; font-weight: 500; letter-spacing: 0.02em; white-space: nowrap; }
+  .hd { width: 1px; height: 26px; background: linear-gradient(180deg, transparent, var(--brass-soft), transparent); }
+  header h1 { font-size: 10.5px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  #status-pill {
+    display: flex; align-items: center; gap: 7px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px; letter-spacing: 0.02em; color: rgba(255,255,255,0.75);
+  }
+  #status-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.3); flex-shrink: 0; transition: background 0.3s; }
+  #status-dot.loading { background: #e9c46a; animation: pulse 1s infinite; }
+  #status-dot.ok { background: #63d68d; box-shadow: 0 0 6px rgba(99,214,141,0.6); }
+  #status-dot.error { background: #e56b6b; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── Config panel ── */
+  #config-panel {
+    background: var(--navy-deep);
+    padding: 18px 44px 16px;
+    border-bottom: 3px solid var(--brass-soft);
+  }
+  .config-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .qd-label { font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.42); }
+  .quick-dates { display: flex; gap: 4px; flex-wrap: wrap; }
+  .qd-btn {
+    height: 30px; padding: 0 13px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 4px;
+    color: rgba(255,255,255,0.6);
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .qd-btn:hover { background: rgba(255,255,255,0.12); color: var(--white); }
+  .qd-btn.active { background: var(--teal); border-color: var(--teal); color: var(--white); box-shadow: 0 2px 8px rgba(26,107,124,0.4); }
+  .date-sep { width: 1px; height: 30px; background: rgba(255,255,255,0.12); }
+  .date-inputs { display: flex; align-items: center; gap: 12px; }
+  .date-field { display: flex; align-items: center; gap: 7px; }
+  .date-field label { font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.42); }
+  .date-field input {
+    height: 32px; width: 140px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 4px;
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--white);
+    background: rgba(255,255,255,0.07);
+    outline: none;
+    color-scheme: dark;
+    transition: border-color 0.15s;
+  }
+  .date-field input:focus { border-color: var(--brass); }
+  #run-btn {
+    height: 36px; padding: 0 30px;
+    background: var(--teal);
+    color: var(--white); border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 11.5px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    box-shadow: 0 2px 10px rgba(26,107,124,0.35);
+  }
+  #run-btn:hover { background: var(--teal-deep); box-shadow: 0 4px 16px rgba(26,107,124,0.45); }
+  #run-btn:active { transform: translateY(1px); }
+  #run-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  #config-panel .disclaimer { font-size: 10.5px; color: rgba(255,255,255,0.28); margin-top: 10px; letter-spacing: 0.02em; }
+
+  /* ── Filters bar ── */
+  #filters {
+    background: var(--card);
+    border-bottom: 1px solid var(--rule);
+    padding: 13px 44px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: var(--ink-3); margin-right: 4px; }
+  .fsel {
+    height: 33px;
+    border: 1px solid var(--rule);
+    border-radius: 17px;
+    padding: 0 14px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: var(--card);
+    outline: none;
+    cursor: pointer;
+    min-width: 128px;
+    transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .fsel:hover { border-color: #d4cdbd; }
+  .fsel:focus { border-color: var(--navy); }
+  .fsel.has-value { border-color: var(--navy); background: var(--navy); color: var(--white); font-weight: 500; box-shadow: 0 2px 8px rgba(29,60,110,0.25); }
+  .filter-divider { width: 1px; height: 20px; background: var(--rule); margin: 0 6px; }
+  #clear-filters-btn {
+    height: 29px; padding: 0 13px;
+    background: none; border: 1px solid var(--rule);
+    border-radius: 15px; font-size: 11px;
+    color: var(--ink-3); cursor: pointer;
+    display: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  #clear-filters-btn:hover { border-color: var(--red); color: var(--red); }
+  #clear-filters-btn.visible { display: block; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 6px; background: var(--card); border-bottom: 1px solid var(--rule); padding: 0 44px; }
+  .tab-btn {
+    height: 48px; padding: 0 22px;
+    border: none; background: none;
+    font-size: 11.5px; font-weight: 600;
+    color: var(--ink-3); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn.active { color: var(--navy); border-bottom-color: var(--brass); }
+  .tab-btn:hover:not(.active) { color: var(--ink); }
+
+  /* ── Main ── */
+  main { padding: 30px 44px 48px; max-width: 1480px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: fadein 0.25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* ── KPIs ── */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 26px; }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 20px 22px 18px;
+    box-shadow: var(--shadow);
+    position: relative;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .kpi-card:hover { box-shadow: var(--shadow-lift); transform: translateY(-1px); }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 20px; bottom: 18px; left: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--brass), var(--brass-faint));
+    border-radius: 2px;
+  }
+  .kpi-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: var(--ink-3); margin-bottom: 12px; }
+  .kpi-value { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--navy-ink); line-height: 1; margin-bottom: 7px; font-variant-numeric: lining-nums; letter-spacing: -0.01em; }
+  .kpi-sub { font-size: 11px; color: var(--ink-3); letter-spacing: 0.01em; }
+
+  /* ── Chart cards ── */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 24px 26px 22px;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.2s;
+  }
+  .chart-card:hover { box-shadow: var(--shadow-lift); }
+  .chart-card.full { grid-column: 1/-1; }
+  .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 12px; }
+  .chart-title { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--navy-ink); letter-spacing: 0.005em; }
+  .chart-title::after { content: ''; display: block; width: 28px; height: 2px; background: var(--brass); margin-top: 7px; border-radius: 1px; }
+  .chart-sub { font-size: 11px; color: var(--ink-3); margin-top: 7px; letter-spacing: 0.02em; }
+  .ctoggle { display: flex; gap: 2px; background: var(--paper); border: 1px solid var(--rule); border-radius: 15px; padding: 2px; flex-shrink: 0; }
+  .ctoggle button { height: 25px; padding: 0 12px; font-size: 10px; font-weight: 600; border: none; border-radius: 13px; cursor: pointer; background: transparent; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; transition: background 0.12s, color 0.12s; white-space: nowrap; }
+  .ctoggle button.active { background: var(--navy); color: var(--white); box-shadow: 0 1px 4px rgba(29,60,110,0.3); }
+  canvas { max-height: 260px; }
+
+  /* ── Tables ── */
+  .table-card { background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .table-header { padding: 18px 24px; border-bottom: 1px solid var(--rule); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .table-header h3 { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--navy-ink); }
+  #table-search {
+    height: 32px; border: 1px solid var(--rule); border-radius: 16px;
+    padding: 0 12px 0 30px; font-size: 12px; outline: none; width: 210px;
+    background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238089a0' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 11px center;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+  #table-search:focus { border-color: var(--navy); background-color: var(--card); }
+
+  table.dt { width: 100%; border-collapse: collapse; }
+  table.dt thead th { background: #faf8f4; padding: 10px 16px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); text-align: left; border-bottom: 1px solid var(--rule); cursor: pointer; white-space: nowrap; user-select: none; transition: color 0.12s; }
+  table.dt thead th:hover { color: var(--navy); }
+  table.dt thead th.sorted { color: var(--navy); }
+  table.dt tbody td { padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--rule-soft); color: var(--ink-2); }
+  table.dt tbody tr:last-child td { border-bottom: none; }
+  table.dt tbody tr:hover td { background: #f8f5ee; }
+
+  .trend-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .trend-table th { background: #faf8f4; padding: 10px 16px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-3); text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .trend-table td { padding: 10px 16px; border-bottom: 1px solid var(--rule-soft); color: var(--ink-2); }
+  .trend-table tr:last-child td { border-bottom: none; }
+  .trend-table tr:hover td { background: #f8f5ee; }
+
+  .cdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid rgba(0,0,0,0.12); vertical-align: middle; box-shadow: inset 0 0 2px rgba(0,0,0,0.06); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+  .badge.ok { background: var(--green-lt); color: var(--green); }
+  .badge.no { background: var(--red-lt); color: var(--red); }
+  .chg { font-weight: 700; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .chg.up { color: var(--green); }
+  .chg.dn { color: var(--red); }
+  .chg.fl { color: var(--ink-3); }
+
+  #error-banner { display: none; background: var(--red-lt); border: 1px solid #efc7c5; border-left: 3px solid var(--red); border-radius: var(--radius-sm); padding: 13px 18px; margin-bottom: 18px; font-size: 13px; color: var(--red); }
+  .empty { text-align: center; padding: 64px; color: var(--ink-3); }
+  .empty .ei { font-size: 26px; margin-bottom: 12px; opacity: 0.35; }
+  .empty p { font-size: 13px; }
+  .empty small { font-size: 11px; display: block; margin-top: 6px; opacity: 0.7; }
+
+  /* ── Loading overlay ── */
+  #loading-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(16,37,74,0.45);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+  #loading-overlay.show { display: flex; }
+  .loading-box {
+    background: var(--card);
+    border-radius: 12px;
+    border-top: 3px solid var(--brass);
+    padding: 36px 46px;
+    text-align: center;
+    box-shadow: 0 24px 70px rgba(16,37,74,0.35);
+  }
+  .loading-spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--rule);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-box p { font-family: var(--serif); font-size: 15px; color: var(--navy-ink); font-weight: 500; }
+  .loading-box small { font-size: 11px; color: var(--ink-3); margin-top: 6px; display: block; }
+
+  /* ── Sub tabs ── */
+  .sub-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+  }
+  .sub-tab {
+    height: 38px; padding: 0 16px;
+    border: none; background: none;
+    font-size: 12.5px; font-weight: 500;
+    color: var(--ink-3); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  .sub-tab.active { color: var(--navy); border-bottom-color: var(--brass); font-weight: 600; }
+  .sub-tab:hover:not(.active) { color: var(--ink); }
+  .sub-tab-metric { margin-left: auto; display: flex; align-items: center; gap: 8px; padding-bottom: 5px; }
+  .sub-panel { display: none; }
+  .sub-panel.active { display: block; animation: fadein 0.25s ease; }
+
+  /* ── Heatmap ── */
+  .heatmap-table { border-collapse: collapse; font-size: 11px; }
+  .heatmap-table th { padding: 7px 10px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); text-align: left; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+  .heatmap-table td { padding: 6px 8px; text-align: center; font-size: 11px; font-weight: 500; min-width: 62px; white-space: nowrap; border: 1px solid rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; }
+  .heatmap-row-label { text-align: left !important; font-weight: 600; color: var(--ink-2); padding-left: 12px !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    html { scroll-behavior: auto; }
+  }
+
+  @media(max-width:900px){
+    header, #config-panel, #filters, .tabs { padding-left: 18px; padding-right: 18px; }
+    main { padding: 20px 18px 36px; }
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .charts-grid { grid-template-columns: 1fr; }
+    header h1 { display: none; }
+  }
 </style>
 </head>
 <body>
-<div id="gate">
-  <div class="gatecard">
-    <div class="brandbig">Barker &amp; Stonehouse</div>
-    <h1>Item Category Report</h1>
-    <p class="gatesub">Sign in with your Barker &amp; Stonehouse Google account to view live data.</p>
-    <button id="signinBtn" class="gbtn">Sign in with Google</button>
-    <p id="gateMsg" class="gatemsg"></p>
+
+<div id="loading-overlay"><div class="loading-box"><div class="loading-spinner"></div><p id="loading-msg">Querying BigQuery...</p><small id="loading-sub">This may take 10–20 seconds</small></div></div>
+<header>
+  <span class="logo">Barker & Stonehouse</span>
+  <div class="hd"></div>
+  <h1>Product Attribute Sales Dashboard</h1>
+  <div class="header-right">
+    <div id="status-pill"><div id="status-dot"></div><span id="status-text">Not signed in</span></div>
   </div>
-</div>
-<div id="app" style="display:none">
-  <header>
-    <span class="brand">Barker and Stonehouse</span>
-    <h1>Item Category Report</h1>
-    <span class="meta" id="metaLine">…</span>
-  </header>
-  <div class="rangebar">
-    <label>Period</label>
-    <select id="preset">
-      <option value="w1">Last full week</option>
-      <option value="w4">Last 4 weeks</option>
-      <option value="w13">Last 13 weeks</option>
-      <option value="w26">Last 26 weeks</option>
-      <option value="custom">Custom…</option>
-    </select>
-    <span id="customWrap" class="customwrap">
-      <input type="date" id="fromD"> <span class="dash">→</span> <input type="date" id="toD">
-      <button class="btn" id="applyBtn">Apply</button>
-    </span>
-    <button class="btn" id="refreshBtn" title="Re-query the current period from BigQuery">↻ Refresh</button>
-    <span class="spacer"></span>
-    <button class="btn" id="signoutBtn">Sign out</button>
+</header>
+
+<div id="config-panel">
+  <div class="config-row">
+    <span class="qd-label">Period:</span>
+    <div class="quick-dates">
+      <button class="qd-btn" onclick="setQuickDate(7)">7D</button>
+      <button class="qd-btn" onclick="setQuickDate(14)">14D</button>
+      <button class="qd-btn" onclick="setQuickDate(28)">28D</button>
+      <button class="qd-btn" onclick="setQuickDate(90)">90D</button>
+      <button class="qd-btn" onclick="setQuickDate(180)">6M</button>
+      <button class="qd-btn active" onclick="setQuickDate(365)">1Y</button>
+      <button class="qd-btn" onclick="setQuickDate('mtd')">MTD</button>
+      <button class="qd-btn" onclick="setQuickDate('ytd')">YTD</button>
+    </div>
+    <div class="date-sep"></div>
+    <div class="date-inputs">
+      <div class="date-field">
+        <label>From</label>
+        <input type="date" id="date-from">
+      </div>
+      <div class="date-field">
+        <label>To</label>
+        <input type="date" id="date-to">
+      </div>
+    </div>
+    <button id="run-btn" onclick="loadData()">Run Query</button>
   </div>
-  <nav id="nav"></nav>
-  <main id="main"></main>
+  <p class="disclaimer">First run will open a Google sign-in window — use your B&amp;S Google account.</p>
 </div>
+
+<div id="filters">
+  <span class="filter-label">Filter:</span>
+  <select class="fsel" id="f-category" onchange="onCategoryChange()"><option value="">All Rooms</option></select>
+  <select class="fsel" id="f-subcategory" onchange="applyFilters()"><option value="">All Product Types</option></select>
+  <select class="fsel" id="f-colour" onchange="applyFilters()"><option value="">All Colours</option></select>
+  <select class="fsel" id="f-material" onchange="applyFilters()"><option value="">All Materials</option></select>
+  <select class="fsel" id="f-collection" onchange="applyFilters()"><option value="">All Collections</option></select>
+  <select class="fsel" id="f-seats" onchange="applyFilters()"><option value="">All Seats</option></select>
+  <div class="filter-divider"></div>
+  <button id="clear-filters-btn" onclick="clearFilters()">✕ Clear filters</button>
+  <select class="fsel" id="f-period" onchange="applyFilters()">
+    <option value="daily">Daily</option>
+    <option value="weekly">Weekly</option>
+    <option value="monthly" selected>Monthly</option>
+    <option value="quarterly">Quarterly</option>
+  </select>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+  <button class="tab-btn" onclick="showTab('demand')">Demand Trends</button>
+  <button class="tab-btn" onclick="showTab('products')">Products</button>
+</div>
+
+<main>
+  <div id="error-banner"></div>
+
+  <!-- OVERVIEW TAB -->
+  <div class="tab-panel active" id="tab-overview">
+
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Total Revenue</div><div class="kpi-value" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-s">Awaiting data</div></div>
+      <div class="kpi-card"><div class="kpi-label">Transactions</div><div class="kpi-value" id="k-txns">—</div><div class="kpi-sub" id="k-txns-s">Awaiting data</div></div>
+      <div class="kpi-card"><div class="kpi-label">Units Sold</div><div class="kpi-value" id="k-units">—</div><div class="kpi-sub" id="k-units-s">Awaiting data</div></div>
+      <div class="kpi-card"><div class="kpi-label">Sessions</div><div class="kpi-value" id="k-sessions">—</div><div class="kpi-sub" id="k-sessions-s">Awaiting data</div></div>
+      <div class="kpi-card"><div class="kpi-label">Avg Order Value</div><div class="kpi-value" id="k-aov">—</div><div class="kpi-sub" id="k-aov-s">Awaiting data</div></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card full">
+        <div class="chart-header">
+          <div><div class="chart-title">Performance Over Time</div><div class="chart-sub" id="trend-sub">Monthly</div></div>
+          <div class="ctoggle">
+            <button onclick="setMetric('revenue')" class="active" id="tb-revenue">Revenue</button>
+            <button onclick="setMetric('sessions')" id="tb-sessions">Sessions</button>
+            <button onclick="setMetric('units')" id="tb-units">Units</button>
+            <button onclick="setMetric('transactions')" id="tb-transactions">Orders</button>
+          </div>
+        </div>
+        <canvas id="trend-chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div><div class="chart-title">Revenue by Colour</div><div class="chart-sub">Top 12</div></div></div>
+        <canvas id="colour-chart"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><div><div class="chart-title">Revenue by Room</div></div></div>
+        <canvas id="category-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEMAND TRENDS TAB -->
+  <div class="tab-panel" id="tab-demand">
+
+    <!-- Sub-nav tabs -->
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="showSubTab('colours')">Colours</button>
+      <button class="sub-tab" onclick="showSubTab('materials')">Materials</button>
+      <button class="sub-tab" onclick="showSubTab('categories')">Categories</button>
+      <button class="sub-tab" onclick="showSubTab('collections')">Collections</button>
+      <button class="sub-tab" onclick="showSubTab('sofas')">Sofa Types</button>
+      <button class="sub-tab" onclick="showSubTab('heatmap')">Heatmap</button>
+      <div class="sub-tab-metric">
+        <span style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;">Metric:</span>
+        <div class="ctoggle">
+          <button onclick="setDemandMetric('revenue')" class="active" id="dm-revenue">Revenue</button>
+          <button onclick="setDemandMetric('units')" id="dm-units">Units</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLOURS sub-tab -->
+    <div class="sub-panel active" id="sub-colours">
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div><div class="chart-title">All Colours — Trend Over Time</div><div class="chart-sub" id="colour-trend-sub">Top 10 colours, monthly</div></div>
+            <div class="ctoggle">
+              <button onclick="setColourTrendMetric('revenue')" class="active" id="ct-revenue">Revenue</button>
+              <button onclick="setColourTrendMetric('units')" id="ct-units">Units</button>
+            </div>
+          </div>
+          <canvas id="colour-trend-chart" style="max-height:320px;"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Colour Momentum</div><div class="chart-sub">% change: recent vs earlier half of period</div></div>
+          </div>
+          <canvas id="colour-momentum-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Colour Share</div><div class="chart-sub">Revenue split across all colours</div></div>
+          </div>
+          <canvas id="colour-share-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- MATERIALS sub-tab -->
+    <div class="sub-panel" id="sub-materials">
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div><div class="chart-title">All Materials — Trend Over Time</div><div class="chart-sub">Monthly performance by material</div></div>
+          </div>
+          <canvas id="material-trend-chart" style="max-height:320px;"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Material Momentum</div><div class="chart-sub">% change: recent vs earlier period</div></div>
+          </div>
+          <canvas id="material-momentum-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Material Share</div><div class="chart-sub">Revenue split by material</div></div>
+          </div>
+          <canvas id="material-share-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES sub-tab -->
+    <div class="sub-panel" id="sub-categories">
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div><div class="chart-title">All Rooms — Trend Over Time</div><div class="chart-sub">Monthly performance by room</div></div>
+          </div>
+          <canvas id="cat-trend-chart" style="max-height:320px;"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Room Momentum</div><div class="chart-sub">% change: recent vs earlier period</div></div>
+          </div>
+          <canvas id="cat-momentum-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Product-type Momentum</div><div class="chart-sub">Drill-down within rooms</div></div>
+          </div>
+          <canvas id="subcat-momentum-chart"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Top Colour by Room</div><div class="chart-sub">Most popular colour in each room</div></div>
+          </div>
+          <canvas id="colour-by-cat-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Top Colour by Product Type</div><div class="chart-sub">Most popular colour per product type</div></div>
+          </div>
+          <canvas id="colour-by-subcat-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLLECTIONS sub-tab -->
+    <div class="sub-panel" id="sub-collections">
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div><div class="chart-title">Collections — Trend Over Time</div><div class="chart-sub">Top 10 collections monthly</div></div>
+          </div>
+          <canvas id="collection-trend-chart" style="max-height:320px;"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Collection Momentum</div><div class="chart-sub">Which ranges are growing</div></div>
+          </div>
+          <canvas id="collection-momentum-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Seat Config Trend</div><div class="chart-sub">2-seater vs 3-seater vs corner etc.</div></div>
+          </div>
+          <canvas id="seat-trend-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOFA TYPES sub-tab -->
+    <div class="sub-panel" id="sub-sofas">
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Sofa Configuration — Trend Over Time</div>
+              <div class="chart-sub">2 Seater, 3 Seater, Corner, Chaise, Sofa Bed etc. — extracted from product names</div>
+            </div>
+            <div class="ctoggle">
+              <button onclick="setSofaMetric('revenue')" class="active" id="sm-revenue">Revenue</button>
+              <button onclick="setSofaMetric('units')" id="sm-units">Units</button>
+            </div>
+          </div>
+          <canvas id="sofa-trend-chart" style="max-height:340px;"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid" style="margin-bottom:16px;">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Configuration Momentum</div><div class="chart-sub">% growth: recent vs earlier period</div></div>
+          </div>
+          <canvas id="sofa-momentum-chart"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div><div class="chart-title">Configuration Share</div><div class="chart-sub">Revenue split by sofa type</div></div>
+          </div>
+          <canvas id="sofa-share-chart"></canvas>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card full">
+          <div class="chart-header">
+            <div><div class="chart-title">Top Colour by Sofa Configuration</div><div class="chart-sub">Which colour leads each sofa type</div></div>
+          </div>
+          <canvas id="sofa-colour-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEATMAP sub-tab -->
+    <div class="sub-panel" id="sub-heatmap">
+      <div class="table-card" style="margin-bottom:16px;">
+        <div class="table-header">
+          <h3>Colour × Room Heatmap</h3>
+          <span style="font-size:11px;color:var(--ink-3);">Darker = higher revenue</span>
+        </div>
+        <div id="heatmap-container" style="padding:16px;overflow-x:auto;">
+          <div class="empty"><div class="ei">📊</div><p>Load data to see heatmap</p></div>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><h3>Colour × Room — Full Detail</h3></div>
+        <div id="demand-table-container">
+          <div class="empty"><div class="ei">📊</div><p>Load data to see demand trends</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- PRODUCTS TAB -->
+  <div class="tab-panel" id="tab-products">
+    <div class="table-card">
+      <div class="table-header">
+        <h3>Product Detail</h3>
+        <input type="text" id="table-search" placeholder="Search products..." oninput="renderProductTable()">
+      </div>
+      <div id="table-container">
+        <div class="empty"><div class="ei">📊</div><p>Sign in and run a query to load data</p></div>
+      </div>
+    </div>
+  </div>
+</main>
 
 <script>
-"use strict";
-/* ============================== helpers ============================== */
-const gbp = v => "£" + Math.round(v).toLocaleString("en-GB");
-const num = v => Math.round(v).toLocaleString("en-GB");
-const pct = v => (v*100).toFixed(2) + "%";
-const dl = (cur, prev, invert) => {
-  if (!prev) return `<span class="delta flat">–</span>`;
-  const d = (cur - prev) / prev;
-  const cls = Math.abs(d) < 0.0005 ? "flat" : ((d > 0) !== !!invert ? "up" : "down");
-  const arrow = d > 0 ? "▲" : d < 0 ? "▼" : "";
-  return `<span class="delta ${cls}">${arrow} ${(Math.abs(d)*100).toFixed(1)}%</span>`;
+// ── State ─────────────────────────────────────────────────────────────────────
+let rawData = [], filteredData = [];
+let trendMetric = 'revenue', demandMetric = 'revenue', colourTrendMetric = 'revenue';
+let sortCol = 'revenue', sortDir = -1;
+let charts = {};
+let accessToken = null, tokenExpiry = 0, tokenClient = null;
+
+// OAuth — no service account key. Each user signs in with their own Google
+// account, which must have BigQuery read access to the project.
+const OAUTH_CLIENT_ID = '46227372300-rk63ag0caqgd7n12gjd0nt7f2qi7llqr.apps.googleusercontent.com';
+const OAUTH_SCOPE = 'https://www.googleapis.com/auth/bigquery.readonly';
+
+// ── Colour map ────────────────────────────────────────────────────────────────
+const CMAP = {
+  'Grey':'#9ca3af','Gray':'#9ca3af','Charcoal':'#6b7280','Black':'#1c1917',
+  'White':'#efece3','Cream':'#fef9c3','Ivory':'#fefce8','Neutral':'#d6d3d1',
+  'Brown':'#92400e','Dark Brown':'#451a03','Tan':'#d97706','Camel':'#b45309',
+  'Blue':'#3b82f6','Navy':'#1e3a5f','Teal':'#0d9488','Duck Egg':'#67e8f9',
+  'Azure':'#38bdf8','Cyan':'#06b6d4','Green':'#22c55e','Sage':'#86efac',
+  'Olive':'#65a30d','Pink':'#f472b6','Dusty Rose':'#fb7185','Coral':'#fb923c',
+  'Burgundy':'#881337','Red':'#ef4444','Orange':'#f97316','Yellow':'#eab308',
+  'Gold':'#d97706','Purple':'#a855f7','Heather':'#c084fc','Silver':'#94a3b8',
+  'Bronze':'#b45309','Copper':'#c2410c','Champagne':'#fde68a','Granite':'#78716c',
 };
-const PAL = ["#d6336c","#2f9e9a","#5c7cfa","#e8890c","#7048a8","#94ad24","#c0392b","#3d6b96",
-             "#b97742","#4d8a5f","#c26fa8","#6b7280","#1f7a8c","#a05c2c","#556b2f","#8b5e83"];
-const col = i => PAL[i % PAL.length];
-const heat = (v, max, hue) => max > 0 && v > 0 ? `background:hsla(${hue},55%,50%,${0.08 + 0.5*Math.min(1, v/max)})` : "";
-Chart.defaults.font.family = getComputedStyle(document.documentElement).getPropertyValue("--f-data");
-Chart.defaults.font.size = 11;
-Chart.defaults.color = "#5a6b7a";
-const charts = {};
-function draw(id, cfg){
-  if (charts[id]) charts[id].destroy();
-  const el = document.getElementById(id);
-  if (el) charts[id] = new Chart(el, cfg);
+const colFor = n => CMAP[n] || '#a8a29e';
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  event.target.classList.add('active');
+  if (filteredData.length) renderAll();
 }
-const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
-const groupBy = (arr, f) => arr.reduce((m, x) => ((m[f(x)] = m[f(x)] || []).push(x), m), {});
-const shortDate = s => { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", {day:"numeric", month:"short"}); };
-const monthLbl = s => new Date(s + "T00:00:00").toLocaleDateString("en-GB", {month:"short", year:"2-digit"});
 
-/* ============================== config ============================== */
-const CLIENT_ID = "46227372300-rk63ag0caqgd7n12gjd0nt7f2qi7llqr.apps.googleusercontent.com";
-const ALLOWED_DOMAIN = "barkerandstonehouse.co.uk";
-const PROJECT = "commanding-air-450109-p0";
-const DATASET = "analytics_287404213";
-const LOCATION = "europe-west2";
-const SCOPES = "openid email https://www.googleapis.com/auth/bigquery.readonly";
-const FOCUS = {
-  garden:        {label:"Garden",        field:"item_category",  value:"GARDEN"},
-  sofas:         {label:"Sofas",         field:"item_category2", value:"SOFAS"},
-  dining_tables: {label:"Dining Tables", field:"item_category2", value:"DINING TABLES"},
-  dining_chairs: {label:"Dining Chairs", field:"item_category2", value:"DINING CHAIRS"},
-  mattresses:    {label:"Mattresses",    field:"item_category2", value:"MATTRESSES"},
-};
-const FOCUS_LABELS = Object.fromEntries(Object.entries(FOCUS).map(([k, v]) => [k, v.label]));
-const TREND_WEEKS = 65;    // weekly trend-series window
-const FOCUS_WEEKS = 112;   // daily-focus window (covers 56-wk display + 364d YoY overlay)
-const MONTHLY_DAYS = 730;  // seasonal monthly-mix window (~2y)
-
-/* ============================== date helpers ============================== */
-const parseD = s => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m-1, d)); };
-const fmtD = dt => dt.toISOString().slice(0, 10);
-const addD = (s, n) => { const dt = parseD(s); dt.setUTCDate(dt.getUTCDate() + n); return fmtD(dt); };
-const sfx = s => s.replace(/-/g, "");
-const minD = (a, b) => a < b ? a : b;
-const todayStr = () => fmtD(new Date());
-const mondayStr = s => { const dt = parseD(s); const wd = (dt.getUTCDay() + 6) % 7; dt.setUTCDate(dt.getUTCDate() - wd); return fmtD(dt); };
-function weeksBetween(a, b){ let m = mondayStr(a); const out = []; while (m <= b) { out.push(m); m = addD(m, 7); } return out; }
-function lastFullWeek(){ const mon = mondayStr(todayStr()); return {from: addD(mon, -7), to: addD(mon, -1)}; }
-function lastNWeeks(n){ const mon = mondayStr(todayStr()); return {from: addD(mon, -7*n), to: addD(mon, -1)}; }
-
-/* ============================== auth (GIS token client + BigQuery readonly) ============================== */
-let tokenClient = null, accessToken = null, tokenExp = 0, tokenInFlight = null, signedInEmail = null;
-function initTokenClient(){
+// ── Auth (Google Identity Services — OAuth token flow) ────────────────────────
+function initTokenClient() {
+  if (tokenClient) return;
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+    throw new Error('Google Sign-In library not loaded yet — check your connection and try again');
+  }
   tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID, scope: SCOPES, hd: ALLOWED_DOMAIN, callback: () => {},
+    client_id: OAUTH_CLIENT_ID,
+    scope: OAUTH_SCOPE,
+    callback: () => {} // replaced per request in getToken()
   });
 }
-function requestToken(prompt){
+
+async function getToken() {
+  if (accessToken && Date.now() < tokenExpiry - 60000) return accessToken;
+  initTokenClient();
   return new Promise((resolve, reject) => {
-    tokenClient.callback = resp => {
-      if (resp.error) return reject(new Error(resp.error));
+    tokenClient.callback = (resp) => {
+      if (resp.error) {
+        reject(new Error(resp.error_description || resp.error));
+        return;
+      }
       accessToken = resp.access_token;
-      tokenExp = Date.now() + ((resp.expires_in ? resp.expires_in * 1000 : 3600000) - 60000);
+      tokenExpiry = Date.now() + (resp.expires_in * 1000);
       resolve(accessToken);
     };
-    tokenClient.error_callback = err => reject(err instanceof Error ? err : new Error((err && err.type) || "sign-in error"));
-    tokenClient.requestAccessToken({prompt: prompt || ""});
-  });
-}
-async function getToken(){                                   // silent refresh, coalesced
-  if (accessToken && Date.now() < tokenExp) return accessToken;
-  if (tokenInFlight) return tokenInFlight;
-  tokenInFlight = requestToken("").finally(() => { tokenInFlight = null; });
-  return tokenInFlight;
-}
-async function fetchEmail(){
-  const t = await getToken();
-  const r = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {headers:{Authorization: "Bearer " + t}});
-  if (!r.ok) return null;
-  return (await r.json()).email;
-}
-function showGate(msg){
-  document.getElementById("app").style.display = "none";
-  document.getElementById("gate").style.display = "flex";
-  document.getElementById("gateMsg").textContent = msg || "";
-}
-function showApp(){
-  document.getElementById("gate").style.display = "none";
-  document.getElementById("app").style.display = "block";
-}
-async function signIn(){
-  try {
-    await requestToken("consent");
-    const email = await fetchEmail();
-    if (!email || !email.toLowerCase().endsWith("@" + ALLOWED_DOMAIN)) {
-      accessToken = null; tokenExp = 0;
-      return showGate("Restricted to Barker & Stonehouse Google accounts. You signed in as " + (email || "an unknown account") + ".");
+    try {
+      // Empty prompt: silent refresh if already consented, popup otherwise
+      tokenClient.requestAccessToken({ prompt: '' });
+    } catch (err) {
+      reject(err);
     }
-    signedInEmail = email;
-    showApp();
-    buildApp();
-  } catch (e) {
-    showGate("Sign-in was cancelled or failed. " + (e.message || ""));
-  }
-}
-function signOut(){ accessToken = null; tokenExp = 0; signedInEmail = null; location.reload(); }
-function initAuth(){
-  const start = () => { initTokenClient(); document.getElementById("signinBtn").onclick = signIn; showGate(""); };
-  if (window.google && google.accounts && google.accounts.oauth2) start();
-  else { const iv = setInterval(() => { if (window.google && google.accounts && google.accounts.oauth2) { clearInterval(iv); start(); } }, 150); }
+  });
 }
 
-/* ============================== BigQuery REST ============================== */
-async function bq(sql){
-  const base = "https://bigquery.googleapis.com/bigquery/v2/projects/" + PROJECT;
-  const token = await getToken();
-  const auth = {Authorization: "Bearer " + token};
-  let res = await fetch(base + "/queries", {
-    method: "POST", headers: {...auth, "Content-Type": "application/json"},
-    body: JSON.stringify({query: sql, useLegacySql: false, location: LOCATION, timeoutMs: 30000, maxResults: 20000}),
-  });
-  if (!res.ok) throw new Error("BigQuery " + res.status + ": " + (await res.text()).slice(0, 300));
-  let data = await res.json();
-  const jobId = data.jobReference.jobId;
-  while (!data.jobComplete) {                                 // poll long-running jobs
-    await new Promise(r => setTimeout(r, 700));
-    const g = await fetch(base + "/queries/" + jobId + "?location=" + LOCATION + "&maxResults=20000&timeoutMs=30000", {headers: auth});
-    if (!g.ok) throw new Error("BigQuery " + g.status + ": " + (await g.text()).slice(0, 300));
-    data = await g.json();
+// ── Query ─────────────────────────────────────────────────────────────────────
+async function loadData() {
+  const df = document.getElementById('date-from').value;
+  const dt = document.getElementById('date-to').value;
+  setStatus('loading','Signing in...'); document.getElementById('run-btn').disabled=true; hideError();
+  let token;
+  try {
+    token = await getToken();
+  } catch(e) {
+    setStatus('error','Sign-in failed');
+    showError(`Sign-in error: ${e.message}. If a popup was blocked, allow popups for this site and try again.`);
+    document.getElementById('run-btn').disabled=false;
+    return;
   }
-  const schema = data.schema.fields;
-  let rows = data.rows || [];
-  let pageToken = data.pageToken;
-  while (pageToken) {                                          // page through large results
-    const g = await fetch(base + "/queries/" + jobId + "?location=" + LOCATION + "&maxResults=20000&pageToken=" + pageToken, {headers: auth});
-    const pg = await g.json();
-    rows = rows.concat(pg.rows || []);
-    pageToken = pg.pageToken;
+  setStatus('loading','Querying BigQuery...');
+  document.getElementById('loading-overlay').classList.add('show');
+  try {
+    const query = `
+      SELECT date, transaction_id, item_id, item_name, item_brand,
+             colour, material, top_category, sub_category,
+             item_type, item_category, seat_config, stock_status, collection,
+             quantity, unit_price, item_revenue, sessions, users, matched_to_feed
+      FROM \`commanding-air-450109-p0.analytics_287404213.v_purchases_with_attributes\`
+      WHERE date BETWEEN '${df}' AND '${dt}' AND item_revenue > 0
+      LIMIT 100000`;
+    const resp = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/commanding-air-450109-p0/queries`,{
+      method:'POST', headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body:JSON.stringify({query,useLegacySql:false,timeoutMs:30000,maxResults:20000})
+    });
+    const result = await resp.json();
+    if (result.error) throw new Error(result.error.message);
+    if (!result.jobComplete) {
+      rawData = await pollJob(token, result.jobReference);
+    } else {
+      // Job finished on the first response — but that response is only the FIRST
+      // PAGE. Follow pageTokens so a wide range (e.g. 1Y) loads in full; otherwise
+      // later rows drop silently and values go missing (this was the green-sofa bug).
+      let all = parseRows(result.schema, result.rows||[]);
+      let pt = result.pageToken;
+      const jr = result.jobReference || {};
+      const projectId = jr.projectId || 'commanding-air-450109-p0';
+      const jobId = jr.jobId, location = jr.location;
+      while (pt && jobId) {
+        const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${projectId}/queries/${jobId}?maxResults=20000&pageToken=${pt}${location?'&location='+location:''}`;
+        const r = await fetch(url,{headers:{'Authorization':`Bearer ${token}`}});
+        const j = await r.json(); if (j.error) throw new Error(j.error.message);
+        all = all.concat(parseRows(j.schema, j.rows||[]));
+        pt = j.pageToken;
+      }
+      rawData = all;
+    }
+    const claimedTotal = result.totalRows ? parseInt(result.totalRows) : rawData.length;
+    setStatus('ok',`${rawData.length.toLocaleString()} rows loaded`);
+    if (rawData.length >= 100000) {
+      showError('Note: this date range hit the 100,000 row limit, so totals may be incomplete. Narrow the date range for exact figures.');
+    } else if (claimedTotal > rawData.length + 5) {
+      showError(`Loaded ${rawData.length.toLocaleString()} of ${claimedTotal.toLocaleString()} rows BigQuery reported — some data may be missing, try re-running.`);
+    }
+    populateFilters(); applyFilters();
+  } catch(e) { setStatus('error','Query failed'); showError(`Error: ${e.message}`); }
+  finally { document.getElementById('run-btn').disabled=false; document.getElementById('loading-overlay').classList.remove('show'); }
+}
+
+async function pollJob(token, jr) {
+  const {projectId,jobId,location} = jr; let rows=[], pt=null;
+  for (let i=0;i<30;i++) {
+    await new Promise(r=>setTimeout(r,1000));
+    const r = await fetch(`https://bigquery.googleapis.com/bigquery/v2/projects/${projectId}/jobs/${jobId}${location?'?location='+location:''}`,{headers:{'Authorization':`Bearer ${token}`}});
+    const j = await r.json(); if (j.status.state==='DONE') break;
   }
-  const numeric = new Set(["INTEGER","INT64","FLOAT","FLOAT64","NUMERIC","BIGNUMERIC"]);
-  return rows.map(r => {
-    const o = {};
-    schema.forEach((f, i) => { let v = r.f[i].v; if (v !== null && numeric.has(f.type)) v = Number(v); o[f.name] = v; });
+  do {
+    const url=`https://bigquery.googleapis.com/bigquery/v2/projects/${projectId}/queries/${jobId}?maxResults=10000${pt?'&pageToken='+pt:''}${location?'&location='+location:''}`;
+    const r = await fetch(url,{headers:{'Authorization':`Bearer ${token}`}});
+    const j = await r.json(); if (j.error) throw new Error(j.error.message);
+    const chunk = parseRows(j.schema, j.rows||[]);
+    rows = rows.length ? rows.concat(chunk) : chunk; pt=j.pageToken;
+  } while(pt);
+  return rows;
+}
+
+function roomFor(cat, name){ return TAXO_roomFor(cat, name); }
+function typeFor(cat, name){ return TAXO_typeFor(cat, name); }
+
+// ── Room + product-type taxonomy ────────────────────────────────────────────
+// The feed category is a flat leaf; we map it onto a Room (top filter) and a
+// cleaned Product Type (sub filter). All sofa variants roll into one "Sofas"
+// type — Corner/Modular/Sofa Bed/seater split stays available via Config.
+const ROOM_MAP = {
+  'sofas':'Living Room','corner sofas':'Living Room','modular sofas':'Living Room','sofa beds':'Living Room',
+  'armrest trays':'Living Room','footstools':'Living Room','occasional stools':'Living Room',
+  'upholstered occasional chairs':'Living Room','upholstered occasional stools':'Living Room',
+  'chairs':'Living Room','coffee tables':'Living Room','console tables':'Living Room','lamp tables':'Living Room',
+  'nest of tables':'Living Room','accessory side tables':'Living Room','entertainment units':'Living Room',
+  'bookcases':'Living Room','tables':'Living Room','storage':'Living Room','living room':'Living Room',
+  'dining chairs':'Dining Room','dining tables':'Dining Room','dining sets':'Dining Room',
+  'dining additional extras':'Dining Room','bar stools':'Dining Room','bar tables':'Dining Room',
+  'counter stools':'Dining Room','sideboards':'Dining Room','display cabinets':'Dining Room',
+  'benches':'Dining Room','tableware':'Dining Room','dining room':'Dining Room',
+  'beds':'Bedroom','bedframes':'Bedroom','divans and headboards':'Bedroom','headboards':'Bedroom',
+  'mattresses':'Bedroom','bedside tables':'Bedroom','chest of drawers':'Bedroom','chests and cupboards':'Bedroom',
+  'wardrobes':'Bedroom','dressing tables':'Bedroom','blanket boxes and ottomans':'Bedroom',
+  'bedroom chair and stools':'Bedroom','bedroom additional extras':'Bedroom','bedding':'Bedroom',
+  'pillows':'Bedroom','bedroom':'Bedroom',
+  'office desks':'Home Office','office furniture':'Home Office',
+  'garden furniture':'Garden & Outdoor','garden seating':'Garden & Outdoor','garden corner sets':'Garden & Outdoor',
+  'garden dining sets':'Garden & Outdoor','garden lounge sets':'Garden & Outdoor','garden sofa sets':'Garden & Outdoor',
+  'garden bar sets':'Garden & Outdoor','garden tables':'Garden & Outdoor','garden hanging chairs':'Garden & Outdoor',
+  'garden parasols':'Garden & Outdoor','garden covers':'Garden & Outdoor','garden accessories':'Garden & Outdoor',
+  'garden kitchens':'Garden & Outdoor','outdoor furniture':'Garden & Outdoor',
+  'lighting':'Lighting','ceiling lights':'Lighting','floor lamps':'Lighting','table lamps':'Lighting',
+  'rugs':'Rugs','plain rugs':'Rugs','patterned rugs':'Rugs','round rugs':'Rugs',
+  'accessories':'Home Accessories','home decor':'Home Accessories','home furnishings':'Home Accessories',
+  'soft furnishings':'Home Accessories','cushions':'Home Accessories','throws':'Home Accessories',
+  'mirrors':'Home Accessories','clocks':'Home Accessories','pictures and wall art':'Home Accessories',
+  'gallery':'Home Accessories','vases':'Home Accessories','vases & decorative bowls':'Home Accessories',
+  'bowls':'Home Accessories','candleholders':'Home Accessories','decorative objects':'Home Accessories',
+  'faux plants and stems':'Home Accessories','lanterns':'Home Accessories','care products':'Home Accessories',
+  'gift vouchers':'Other'
+};
+// Leaf -> cleaned product type (only rollups/renames; unlisted leaves keep their own name)
+const TYPE_MAP = {
+  'sofas':'Sofas','corner sofas':'Sofas','modular sofas':'Sofas','sofa beds':'Sofas',
+  'plain rugs':'Rugs','patterned rugs':'Rugs','round rugs':'Rugs','rugs':'Rugs',
+  'vases & decorative bowls':'Vases','vases':'Vases',
+  'garden furniture':'Garden Furniture','outdoor furniture':'Garden Furniture','lighting':'Lighting'
+};
+// Generic room-level leaves / blanks carry no product type — sniff the name instead
+const GENERIC_LEAVES = new Set(['living room','dining room','bedroom','','tables','chairs','storage','home furnishings','home decor']);
+function titleCase(s){return (s||'').replace(/\w\S*/g,w=>w.charAt(0).toUpperCase()+w.slice(1));}
+function typeFromName(name){
+  const n=(name||'').toLowerCase(); if(!n) return null;
+  if(/sofa|settee|snuggler|chaise/.test(n)) return 'Sofas';
+  if(/armchair|accent chair|occasional chair|tub chair|wing chair/.test(n)) return 'Armchairs';
+  if(/dining chair/.test(n)) return 'Dining Chairs';
+  if(/bar stool|counter stool/.test(n)) return 'Bar & Counter Stools';
+  if(/dining table/.test(n)) return 'Dining Tables';
+  if(/dining set/.test(n)) return 'Dining Sets';
+  if(/coffee table/.test(n)) return 'Coffee Tables';
+  if(/console table/.test(n)) return 'Console Tables';
+  if(/side table|lamp table|end table/.test(n)) return 'Side Tables';
+  if(/bed frame|bedframe|divan|ottoman bed|\bbed\b/.test(n)) return 'Beds';
+  if(/mattress/.test(n)) return 'Mattresses';
+  if(/wardrobe/.test(n)) return 'Wardrobes';
+  if(/chest of drawers|drawer chest/.test(n)) return 'Chest of Drawers';
+  if(/bedside|nightstand/.test(n)) return 'Bedside Tables';
+  if(/sideboard/.test(n)) return 'Sideboards';
+  if(/bookcase|shelving/.test(n)) return 'Bookcases';
+  if(/tv unit|media unit|entertainment/.test(n)) return 'Entertainment Units';
+  if(/footstool|pouffe/.test(n)) return 'Footstools';
+  if(/mirror/.test(n)) return 'Mirrors';
+  if(/\brug\b/.test(n)) return 'Rugs';
+  if(/cushion/.test(n)) return 'Cushions';
+  if(/lamp|light|pendant|chandelier/.test(n)) return 'Lighting';
+  return null;
+}
+const TYPE_REP = {'Sofas':'sofas','Armchairs':'chairs','Dining Chairs':'dining chairs','Bar & Counter Stools':'bar stools','Dining Tables':'dining tables','Dining Sets':'dining sets','Coffee Tables':'coffee tables','Console Tables':'console tables','Side Tables':'lamp tables','Beds':'beds','Mattresses':'mattresses','Wardrobes':'wardrobes','Chest of Drawers':'chest of drawers','Bedside Tables':'bedside tables','Sideboards':'sideboards','Bookcases':'bookcases','Entertainment Units':'entertainment units','Footstools':'footstools','Mirrors':'mirrors','Rugs':'rugs','Cushions':'cushions','Lighting':'lighting'};
+function TAXO_roomFor(cat, name){
+  const key=(cat||'').trim().toLowerCase();
+  if(ROOM_MAP[key]) return ROOM_MAP[key];
+  const t=typeFromName(name); const rep=t?TYPE_REP[t]:null;
+  return (rep&&ROOM_MAP[rep])||'Other';
+}
+function TAXO_typeFor(cat, name){
+  const key=(cat||'').trim().toLowerCase();
+  if(GENERIC_LEAVES.has(key)) return typeFromName(name) || (key?titleCase(key):'Other');
+  if(TYPE_MAP[key]) return TYPE_MAP[key];
+  return titleCase(cat||'Other');
+}
+
+function getSofaConfig(name, category, seatConfig) {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  const cat = (category||'').toLowerCase();
+  const sc = (seatConfig||'').toLowerCase();
+
+  // Only apply to sofa/upholstery categories
+  const isSofa = cat.includes('sofa') || cat.includes('upholstery') ||
+                 cat.includes('armchair') || cat.includes('chair') ||
+                 n.includes('sofa') || n.includes('settee');
+  if (!isSofa) return null;
+
+  // Seater count — check number first
+  if (/5[\s-]seater/.test(n)) return '5 Seater';
+  if (/4[\s-]seater/.test(n)) return '4 Seater';
+  if (/3[\s-]seater/.test(n)) return '3 Seater';
+  if (/2[\s-]seater/.test(n)) return '2 Seater';
+
+  // Configuration types
+  if (/corner/.test(n)) return 'Corner';
+  if (/chaise/.test(n)) return 'Chaise';
+  if (/sofa bed|sofabed/.test(n)) return 'Sofa Bed';
+  if (/modular/.test(n)) return 'Modular';
+  if (/snuggler/.test(n)) return 'Snuggler';
+  if (/loveseat|love seat/.test(n)) return 'Loveseat';
+  if (/recliner/.test(n)) return 'Recliner';
+  if (/armchair|arm chair/.test(n)) return 'Armchair';
+  if (/studio couch/.test(n)) return 'Studio Couch';
+
+  // Size-based fallback for sofas without seater count
+  if (/extra large|extra lrg|x[\s-]large|xlarge/.test(n)) return 'Extra Large';
+  if (/large/.test(n)) return 'Large';
+  if (/medium/.test(n)) return 'Medium';
+  if (/small/.test(n)) return 'Small';
+  if (/compact/.test(n)) return 'Compact';
+
+  // Fall back to seat_config from GA4 if set
+  if (sc && sc !== '(not set)' && sc !== '') return seatConfig;
+
+  return 'Other';
+}
+
+// ── Colour from product title ───────────────────────────────────────────────
+// Feed `colour` is blank/Unknown on a majority of products, but the shade is
+// almost always in the title (Sage, Charcoal, Petrol…). We map title shade
+// words onto the canonical colour buckets and use it ONLY to fill gaps —
+// a feed-supplied colour is never overwritten. Ordered most-specific first.
+const COLOUR_RULES = [
+  [/\bpetrol\b|\bpeacock\b|\bturquoise\b|\baqua\b|\bteal\b/, 'Teal'],
+  [/\bnavy\b|\bmidnight\b|\bink\b/, 'Navy'],
+  [/\bdenim\b|\bcobalt\b|\bsky\b|\bpowder\s?blue\b|\bazure\b|\bblue\b/, 'Blue'],
+  [/\bsage\b|\bolive\b|\bforest\b|\bemerald\b|\bmoss\b|\bfern\b|\bbottle\s?green\b|\bhunter\b|\bpistachio\b|\bmint\b|\bjade\b|\beucalyptus\b|\bjuniper\b|\bgreen\b/, 'Green'],
+  [/\bcharcoal\b|\bslate\b|\bgraphite\b|\bpewter\b|\bdove\b|\bash\b|\bsmoke\b|\bgunmetal\b|\bflint\b|\bsilver\b|\bsteel\b|\bgrey\b|\bgray\b/, 'Grey'],
+  [/\bterracotta\b|\brust\b|\bburnt\s?orange\b|\bamber\b|\btangerine\b|\bapricot\b|\borange\b/, 'Orange'],
+  [/\bmustard\b|\bochre\b|\blemon\b|\bsaffron\b|\byellow\b/, 'Yellow'],
+  [/\bgold\b|\bbrass\b/, 'Gold'],
+  [/\bburgundy\b|\bwine\b|\bclaret\b|\bcrimson\b|\bberry\b|\bmaroon\b|\bruby\b|\bred\b/, 'Red'],
+  [/\bblush\b|\brose\b|\bdusky\s?pink\b|\bcoral\b|\bfuchsia\b|\bmagenta\b|\bpink\b/, 'Pink'],
+  [/\bplum\b|\baubergine\b|\blilac\b|\bmauve\b|\bviolet\b|\bheather\b|\bpurple\b/, 'Purple'],
+  [/\bcognac\b|\bchocolate\b|\bmocha\b|\bcoffee\b|\bchestnut\b|\bcaramel\b|\bcamel\b|\btoffee\b|\bhazel\b|\bumber\b|\btan\b|\bbrown\b/, 'Brown'],
+  [/\bcream\b|\bivory\b|\boatmeal\b|\bnatural\b|\bbeige\b|\bsand\b|\blinen\b|\bmushroom\b|\bstone\b|\bgreige\b|\bputty\b|\becru\b|\bchampagne\b|\bwheat\b|\blatte\b|\bbiscuit\b|\btaupe\b|\bneutral\b/, 'Neutral'],
+  [/\bebony\b|\bjet\b|\bonyx\b|\bnoir\b|\bblack\b/, 'Black'],
+  [/\bsnow\b|\bchalk\b|\bwhite\b/, 'White'],
+];
+function colourFromName(name){
+  const n=(name||'').toLowerCase(); if(!n) return null;
+  for(const [re,c] of COLOUR_RULES){ if(re.test(n)) return c; }
+  return null;
+}
+
+function parseRows(schema,rows) {
+  if (!schema||!rows) return [];
+  const fields = schema.fields.map(f=>f.name);
+  return rows.map(row=>{
+    const o={};
+    row.f.forEach((cell,i)=>{
+      let v=cell.v; const n=fields[i];
+      if (n==='item_revenue'||n==='unit_price') v=parseFloat(v)||0;
+      else if (n==='quantity'||n==='sessions'||n==='users') v=parseInt(v)||0;
+      else if (n==='matched_to_feed') v=v==='true'||v===true;
+      o[n]=v;
+    });
+    // Derive sofa_config from product name
+    o.sofa_config = getSofaConfig(o.item_name, o.item_category, o.seat_config);
+    o.room = roomFor(o.top_category, o.item_name);
+    o.ptype = typeFor(o.top_category, o.item_name);
+    o.colour_inferred = false;
+    if(!o.colour || o.colour==='Unknown' || o.colour==='' || o.colour==='(not set)'){
+      const c = colourFromName(o.item_name);
+      if(c){ o.colour = c; o.colour_inferred = true; }
+    }
     return o;
   });
 }
 
-/* ============================== SQL builders (ported from refresh_data.py) ============================== */
-const TBL = "`" + PROJECT + "." + DATASET + ".events_*`";
-const SID = "CONCAT(user_pseudo_id, '-', CAST((SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'ga_session_id') AS STRING))";
-function focusCase(){
-  return "CASE " + Object.entries(FOCUS).map(([k, f]) =>
-    "WHEN UPPER(TRIM(i." + f.field + ")) = '" + f.value + "' THEN '" + k + "'").join(" ") + " ELSE NULL END";
+// ── Filters ───────────────────────────────────────────────────────────────────
+function populateFilters() {
+  const cat = v('f-category');
+  const u = a => [...new Set(a.filter(Boolean))].sort();
+
+  fillSel('f-category', u(rawData.map(r=>r.room)), 'All Rooms');
+
+  const catData = cat ? rawData.filter(r=>r.room===cat) : rawData;
+  fillSel('f-subcategory', u(catData.map(r=>r.ptype)), 'All Product Types');
+
+  const sub = v('f-subcategory');
+  const attrData = catData.filter(r=>!sub||r.ptype===sub);
+  fillSel('f-colour', u(attrData.map(r=>r.colour).filter(c=>c&&c!=='Unknown')), 'All Colours');
+  fillSel('f-material', u(attrData.map(r=>r.material).filter(m=>m&&m!=='Unknown')), 'All Materials');
+  fillSel('f-collection', u(attrData.map(r=>r.collection).filter(c=>c&&c!=='(not set)'&&c!=='')), 'All Collections');
+  fillSel('f-seats', u(attrData.map(r=>r.sofa_config).filter(c=>c&&c!=='(not set)'&&c!=='')), 'All Seats');
 }
-function sqlWeekly(dim, a, b){ return `
-WITH v AS (
-  SELECT DATE_TRUNC(PARSE_DATE('%Y%m%d', event_date), WEEK(MONDAY)) AS wk,
-    IFNULL(NULLIF(TRIM(i.${dim}), ''), '(not set)') AS cat, ${SID} AS sid, i.item_name AS nm
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-p AS (
-  SELECT DATE_TRUNC(PARSE_DATE('%Y%m%d', event_date), WEEK(MONDAY)) AS wk,
-    IFNULL(NULLIF(TRIM(i.${dim}), ''), '(not set)') AS cat,
-    ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-va AS (SELECT wk, cat, COUNT(DISTINCT sid) AS s, COUNT(DISTINCT nm) AS iv FROM v GROUP BY wk, cat),
-pa AS (SELECT wk, cat, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p GROUP BY wk, cat)
-SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(va.wk, pa.wk)) AS w, COALESCE(va.cat, pa.cat) AS c,
-  IFNULL(va.s,0) AS s, IFNULL(va.iv,0) AS iv, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r
-FROM va FULL OUTER JOIN pa USING (wk, cat) ORDER BY w, c`; }
-function sqlMonthly(a, b){ return `
-SELECT EXTRACT(MONTH FROM PARSE_DATE('%Y%m%d', event_date)) AS m,
-  IFNULL(NULLIF(TRIM(i.item_category), ''), '(not set)') AS c,
-  COUNT(DISTINCT ${SID}) AS s
-FROM ${TBL}, UNNEST(items) AS i
-WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
-GROUP BY m, c ORDER BY m, c`; }
-function sqlDailyFocus(a, b){ const fc = focusCase(); return `
-WITH v AS (
-  SELECT PARSE_DATE('%Y%m%d', event_date) AS d, ${fc} AS k, ${SID} AS sid
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-p AS (
-  SELECT PARSE_DATE('%Y%m%d', event_date) AS d, ${fc} AS k,
-    ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-va AS (SELECT d, k, COUNT(DISTINCT sid) AS s FROM v WHERE k IS NOT NULL GROUP BY d, k),
-pa AS (SELECT d, k, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p WHERE k IS NOT NULL GROUP BY d, k)
-SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(va.d, pa.d)) AS d, COALESCE(va.k, pa.k) AS k,
-  IFNULL(va.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r
-FROM va FULL OUTER JOIN pa USING (d, k) ORDER BY d, k`; }
-function sqlItems(a, b, curStart){ const fc = focusCase(); return `
-WITH v AS (
-  SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
-    TRIM(i.item_name) AS nm, ${SID} AS sid
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
-    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
-p AS (
-  SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
-    TRIM(i.item_name) AS nm, ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
-    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
-attrs AS (
-  SELECT TRIM(i.item_name) AS nm,
-    APPROX_TOP_COUNT(i.item_id, 1)[OFFSET(0)].value AS id,
-    APPROX_TOP_COUNT(IFNULL(NULLIF(TRIM(i.item_category), ''), '(not set)'), 1)[OFFSET(0)].value AS c,
-    APPROX_TOP_COUNT(IFNULL(NULLIF(TRIM(i.item_category2), ''), '(not set)'), 1)[OFFSET(0)].value AS c2,
-    APPROX_TOP_COUNT(NULLIF(TRIM(i.item_brand), ''), 1)[OFFSET(0)].value AS b,
-    APPROX_TOP_COUNT(${fc}, 1)[OFFSET(0)].value AS k
-  FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name IN ('view_item', 'purchase') AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
-    AND i.item_name IS NOT NULL AND TRIM(i.item_name) != '' GROUP BY nm),
-va AS (SELECT pd, nm, COUNT(DISTINCT sid) AS s FROM v GROUP BY pd, nm),
-pa AS (SELECT pd, nm, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p GROUP BY pd, nm)
-SELECT COALESCE(va.pd, pa.pd) AS pd, COALESCE(va.nm, pa.nm) AS nm,
-  IFNULL(va.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r,
-  attrs.id, attrs.c, attrs.c2, attrs.b, attrs.k
-FROM va FULL OUTER JOIN pa USING (pd, nm)
-LEFT JOIN attrs ON attrs.nm = COALESCE(va.nm, pa.nm)`; }
-function sqlBreakdown(a, b){ const fc = focusCase(); return `
-SELECT FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%Y%m%d', event_date)) AS d, ${fc} AS k,
-  IFNULL(NULLIF(TRIM(i.item_brand), ''), SPLIT(TRIM(i.item_name), ' ')[SAFE_OFFSET(0)]) AS rg,
-  IFNULL(NULLIF(TRIM(i.item_category2), ''), '(not set)') AS c2,
-  ROUND(SUM(IFNULL(i.item_revenue, 0)), 2) AS r
-FROM ${TBL}, UNNEST(items) AS i
-WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}' AND ${fc} IS NOT NULL
-GROUP BY d, k, rg, c2 HAVING r > 0 ORDER BY d`; }
-function sqlChannels(a, b){ return `
-WITH s AS (
-  SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
-    IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch, ${SID} AS sid
-  FROM ${TBL}
-  WHERE event_name = 'session_start' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-p AS (
-  SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
-    IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch,
-    ecommerce.transaction_id AS tid, IFNULL(ecommerce.purchase_revenue, 0) AS rev
-  FROM ${TBL}
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
-sa AS (SELECT d, ch, COUNT(DISTINCT sid) AS s FROM s GROUP BY d, ch),
-pa AS (SELECT d, ch, COUNT(DISTINCT tid) AS t, ROUND(SUM(rev), 2) AS r FROM p GROUP BY d, ch)
-SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(sa.d, pa.d)) AS d, COALESCE(sa.ch, pa.ch) AS ch,
-  IFNULL(sa.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.r,0) AS r
-FROM sa FULL OUTER JOIN pa USING (d, ch) ORDER BY d, ch`; }
-
-/* ============================== period + live data loading ============================== */
-let D = {};
-const TABS = [];
-const cache = {};
-const rendered = {};
-let curPeriod = null;
-let activeTab = null;
-
-function setPeriod(from, to){
-  const lenDays = Math.round((parseD(to) - parseD(from)) / 86400000) + 1;
-  const prev_end = addD(from, -1);
-  const prev_start = addD(from, -lenDays);
-  curPeriod = {
-    from, to, prev_start, prev_end, lenDays,
-    weeklyStart: mondayStr(minD(prev_start, addD(to, -7 * TREND_WEEKS))),
-    focusStart: minD(prev_start, addD(to, -7 * FOCUS_WEEKS)),
-    monthlyStart: addD(to, -MONTHLY_DAYS),
-  };
-  D.meta = {
-    cur_start: from, cur_end: to, prev_start, prev_end,
-    cur_weeks: weeksBetween(from, to), prev_weeks: weeksBetween(prev_start, prev_end),
-    focus: FOCUS_LABELS, generated: "live",
-  };
-  for (const k in cache) delete cache[k];
-  for (const k in rendered) delete rendered[k];
-  document.getElementById("metaLine").textContent =
-    from + " – " + to + "  vs  " + prev_start + " – " + prev_end + "  ·  live  ·  " + (signedInEmail || "");
+function fillSel(id,vals,ph) {
+  const s=document.getElementById(id), cur=s.value;
+  s.innerHTML=`<option value="">${ph}</option>`;
+  vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===cur)o.selected=true;s.appendChild(o);});
+}
+function clearFilters() {
+  ['f-category','f-subcategory','f-colour','f-material','f-collection','f-seats'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+  document.getElementById('clear-filters-btn').classList.remove('visible');
+  applyFilters();
 }
 
-const LOADERS = {
-  weekly_category: () => bq(sqlWeekly("item_category", sfx(curPeriod.weeklyStart), sfx(curPeriod.to))),
-  weekly_subcategory: async () => {
-    const rows = await bq(sqlWeekly("item_category2", sfx(curPeriod.weeklyStart), sfx(curPeriod.to)));
-    const tot = {}; rows.forEach(r => tot[r.c] = (tot[r.c] || 0) + (r.r || 0));
-    const keep = new Set(Object.entries(tot).sort((a, b) => b[1] - a[1]).slice(0, 40).map(x => x[0]));
-    const agg = {};
-    rows.forEach(r => {
-      const c = keep.has(r.c) ? r.c : "Other";
-      const key = r.w + "|" + c;
-      const a = agg[key] || (agg[key] = {w: r.w, c, s: 0, iv: 0, t: 0, ip: 0, r: 0});
-      a.s += r.s; a.iv += r.iv; a.t += r.t; a.ip += r.ip; a.r += (r.r || 0);
-    });
-    return Object.values(agg).map(a => ({...a, r: Math.round(a.r * 100) / 100}));
-  },
-  monthly_category: () => bq(sqlMonthly(sfx(curPeriod.monthlyStart), sfx(curPeriod.to))),
-  daily_focus: () => bq(sqlDailyFocus(sfx(curPeriod.focusStart), sfx(curPeriod.to))),
-  focus_breakdown: () => bq(sqlBreakdown(sfx(curPeriod.from), sfx(curPeriod.to))),
-  channels: () => bq(sqlChannels(sfx(curPeriod.prev_start), sfx(curPeriod.to))),
-  items_wow: async () => {
-    const rows = await bq(sqlItems(sfx(curPeriod.prev_start), sfx(curPeriod.to), curPeriod.from));
-    const items = {};
-    rows.forEach(r => {
-      const it = items[r.nm] || (items[r.nm] = {n: r.nm, id: r.id, c: r.c, c2: r.c2, b: r.b, k: r.k,
-        s: 0, t: 0, ip: 0, r: 0, s_p: 0, t_p: 0, ip_p: 0, r_p: 0});
-      const sk = r.pd === "cur" ? "" : "_p";
-      it["s" + sk] = r.s; it["t" + sk] = r.t; it["ip" + sk] = r.ip; it["r" + sk] = Math.round((r.r || 0) * 100) / 100;
-      ["id","c","c2","b","k"].forEach(f => { if (!it[f] && r[f]) it[f] = r[f]; });
-    });
-    return Object.values(items)
-      .filter(x => x.s > 0 || x.r > 0 || x.r_p > 0)
-      .sort((a, b) => (b.s - a.s) || (b.r - a.r))
-      .slice(0, 1500);
-  },
-};
-
-const NEEDS = {
-  cat: ["weekly_category", "monthly_category"],
-  sub: ["weekly_subcategory"],
-  items: ["items_wow"],
-  detail: ["items_wow", "channels"],
-};
-function needsFor(id){ return id.indexOf("f_") === 0 ? ["daily_focus", "items_wow", "focus_breakdown"] : (NEEDS[id] || []); }
-async function ensureData(id){
-  const missing = needsFor(id).filter(n => !cache[n]);
-  await Promise.all(missing.map(async n => { cache[n] = await LOADERS[n](); }));
-  needsFor(id).forEach(n => D[n] = cache[n]);
+function onCategoryChange() {
+  document.getElementById('f-subcategory').value = '';
+  document.getElementById('f-colour').value = '';
+  document.getElementById('f-material').value = '';
+  document.getElementById('f-collection').value = '';
+  document.getElementById('f-seats').value = '';
+  applyFilters();
 }
 
-/* ============================== app shell ============================== */
-function periodFromControls(){
-  const v = document.getElementById("preset").value;
-  if (v === "custom") {
-    const f = document.getElementById("fromD").value, t = document.getElementById("toD").value;
-    if (f && t && f <= t) return [f, t];
-    const w = lastFullWeek(); return [w.from, w.to];
-  }
-  if (v === "w4")  { const p = lastNWeeks(4);  return [p.from, p.to]; }
-  if (v === "w13") { const p = lastNWeeks(13); return [p.from, p.to]; }
-  if (v === "w26") { const p = lastNWeeks(26); return [p.from, p.to]; }
-  const p = lastFullWeek(); return [p.from, p.to];
+function applyFilters() {
+  populateFilters();
+  const cat=v('f-category'),sub=v('f-subcategory'),col=v('f-colour'),mat=v('f-material'),
+        coll=v('f-collection'),seat=v('f-seats');
+  filteredData=rawData.filter(r=>{
+    if(cat&&r.room!==cat)return false;
+    if(sub&&r.ptype!==sub)return false;
+    if(col&&r.colour!==col)return false;
+    if(mat&&r.material!==mat)return false;
+    if(coll&&r.collection!==coll)return false;
+    if(seat&&r.sofa_config!==seat)return false;
+    return true;
+  });
+  const anyActive = ['f-category','f-subcategory','f-colour','f-material','f-collection','f-seats'].some(id=>document.getElementById(id).value!=='');
+  ['f-category','f-subcategory','f-colour','f-material','f-collection','f-seats'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.toggle('has-value', el.value!=='');
+  });
+  const btn = document.getElementById('clear-filters-btn');
+  if(btn) btn.classList.toggle('visible', anyActive);
+  renderAll();
 }
-function wireControls(){
-  const preset = document.getElementById("preset");
-  const custom = document.getElementById("customWrap");
-  const syncVis = () => { custom.style.display = preset.value === "custom" ? "flex" : "none"; };
-  preset.onchange = () => { syncVis(); if (preset.value !== "custom") applyControls(); };
-  document.getElementById("applyBtn").onclick = applyControls;
-  document.getElementById("refreshBtn").onclick = () => {
-    for (const k in cache) delete cache[k];
-    for (const k in rendered) delete rendered[k];
-    show(activeTab || TABS[0].id);
-  };
-  document.getElementById("signoutBtn").onclick = signOut;
-  document.getElementById("fromD").value = curPeriod.from;
-  document.getElementById("toD").value = curPeriod.to;
-  syncVis();
-}
-function applyControls(){
-  setPeriod(...periodFromControls());
-  document.getElementById("fromD").value = curPeriod.from;
-  document.getElementById("toD").value = curPeriod.to;
-  show(activeTab || TABS[0].id);
-}
-function buildApp(){
-  setPeriod(...periodFromControls());
-  TABS.length = 0;
-  TABS.push({id: "cat", label: "Category Summary (Weekly)", render: renderCategory});
-  TABS.push({id: "sub", label: "Sub-Category Summary (Weekly)", render: renderSubcategory});
-  for (const [k, label] of Object.entries(D.meta.focus))
-    TABS.push({id: "f_" + k, label: label + " Sales", render: () => renderFocus(k, label)});
-  TABS.push({id: "items", label: "Item Ranges & Item Sales", render: renderItems});
-  TABS.push({id: "detail", label: "Item Detail & Channels", render: renderDetail});
-  const nav = document.getElementById("nav");
-  nav.innerHTML = TABS.map(t => `<button data-t="${t.id}">${t.label}</button>`).join("");
-  nav.onclick = e => { const b = e.target.closest("button"); if (b) show(b.dataset.t); };
-  document.getElementById("main").innerHTML =
-    TABS.map(t => `<section class="tabpage" id="pg_${t.id}"></section>`).join("");
-  wireControls();
-  show(TABS[0].id);
+const v = id => document.getElementById(id).value;
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderKPIs(); renderTrend(); renderColourChart(); renderCategoryChart();
+  renderAllTrends(); renderProductTable();
 }
 
-async function show(id){
-  activeTab = id;
-  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.t === id));
-  document.querySelectorAll(".tabpage").forEach(p => p.classList.toggle("on", p.id === "pg_" + id));
-  if (rendered[id]) return;
-  const pg = document.getElementById("pg_" + id);
-  pg.innerHTML = `<div class="loading">Querying BigQuery…</div>`;
-  try {
-    await ensureData(id);
-    TABS.find(t => t.id === id).render();
-    rendered[id] = true;
-  } catch (e) {
-    pg.innerHTML = `<div class="loading">Query failed.<br><small>${(e && e.message) || e}</small></div>`;
-  }
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function renderKPIs() {
+  const rev  = filteredData.reduce((s,r)=>s+r.item_revenue,0);
+  const units= filteredData.reduce((s,r)=>s+r.quantity,0);
+  const txns = new Set(filteredData.map(r=>r.transaction_id)).size;
+  const aov  = txns>0?rev/txns:0;
+  // Sessions: unique by date to avoid double-counting
+  const sessByDate={};
+  filteredData.forEach(r=>{ if(r.sessions&&!sessByDate[r.date]) sessByDate[r.date]=r.sessions; });
+  const sessions=Object.values(sessByDate).reduce((s,v)=>s+v,0);
+  set('k-revenue','£'+fmt(rev)); set('k-revenue-s',fmt(txns)+' orders');
+  set('k-txns',fmt(txns)); set('k-txns-s',fmt(units)+' units');
+  set('k-units',fmt(units)); set('k-units-s','£'+fmt(rev/Math.max(units,1))+' avg item value');
+  set('k-sessions',fmt(sessions)); set('k-sessions-s','Site-wide, '+Object.keys(sessByDate).length+' days');
+  const convPct = sessions>0 ? (txns/sessions*100) : 0;
+  set('k-aov','£'+fmt(aov)); set('k-aov-s',(convPct>0&&convPct<10?convPct.toFixed(2):Math.round(convPct))+'% site conversion');
 }
 
-/* ============================== shared builders ============================== */
-function kpiRow(items){
-  return `<div class="kpis">` + items.map(k =>
-    `<div class="kpi"><div class="l">${k.l}</div><div class="v">${k.v}</div><div class="d">${k.d || ""}</div></div>`).join("") + `</div>`;
+// ── Trend chart ───────────────────────────────────────────────────────────────
+function renderTrend() {
+  const period=v('f-period'); const g={};
+  filteredData.forEach(r=>{
+    const k=periodKey(r.date,period);
+    if(!g[k])g[k]={revenue:0,units:0,transactions:new Set(),sessions:0,_dates:new Set()};
+    g[k].revenue+=r.item_revenue; g[k].units+=r.quantity; g[k].transactions.add(r.transaction_id);
+    if(r.sessions&&!g[k]._dates.has(r.date)){g[k].sessions+=r.sessions;g[k]._dates.add(r.date);}
+  });
+  const labels=Object.keys(g).sort();
+  const vals=labels.map(k=>{
+    const d=g[k];
+    if(trendMetric==='revenue')return Math.round(d.revenue);
+    if(trendMetric==='units')return d.units;
+    if(trendMetric==='transactions')return d.transactions.size;
+    if(trendMetric==='sessions')return d.sessions;
+  });
+  set('trend-sub',period.charAt(0).toUpperCase()+period.slice(1)+' view');
+  mkChart('trend-chart','line',labels,vals,{borderColor:'#1d3c6e',backgroundColor:'rgba(29,60,110,0.06)',fill:true,tension:0.3,pointRadius:labels.length>30?0:3},{
+    y:{ticks:{callback:n=>trendMetric==='revenue'?'£'+fmt(n):fmt(n)}}
+  });
 }
 
-function weeklyKpis(rows){
-  const cw = D.meta.cur_weeks, pw = D.meta.prev_weeks;
-  const cur = rows.filter(r => cw.includes(r.w)), prev = rows.filter(r => pw.includes(r.w));
-  const m = a => ({s: sum(a, r => r.s), t: sum(a, r => r.t), ip: sum(a, r => r.ip), r: sum(a, r => r.r), iv: sum(a, r => r.iv)});
-  const c = m(cur), p = m(prev);
-  const cvr = c.s ? c.t/c.s : 0, pcvr = p.s ? p.t/p.s : 0;
-  const aov = c.t ? c.r/c.t : 0, paov = p.t ? p.r/p.t : 0;
-  return kpiRow([
-    {l:"Sessions (item viewed)", v:num(c.s), d:dl(c.s, p.s)},
-    {l:"Items purchased", v:num(c.ip), d:dl(c.ip, p.ip)},
-    {l:"Transactions", v:num(c.t), d:dl(c.t, p.t)},
-    {l:"Purchase conversion", v:pct(cvr), d:dl(cvr, pcvr)},
-    {l:"Item revenue", v:gbp(c.r), d:dl(c.r, p.r)},
-    {l:"AOV", v:gbp(aov), d:dl(aov, paov)},
-  ]);
+// ── Colour chart ──────────────────────────────────────────────────────────────
+function renderColourChart() {
+  const by={};
+  filteredData.forEach(r=>{if(!r.colour||r.colour==='Unknown')return;by[r.colour]=(by[r.colour]||0)+r.item_revenue;});
+  const s=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  mkChart('colour-chart','bar',s.map(x=>x[0]),s.map(x=>Math.round(x[1])),{backgroundColor:s.map(x=>colFor(x[0])),borderRadius:3},{
+    indexAxis:'y',y:{grid:{display:false}},x:{ticks:{callback:n=>'£'+fmt(n)}}
+  });
 }
 
-// weekly 100% stacked bar of metric by dimension
-function stacked100(canvasId, rows, metric, topN){
-  const byC = groupBy(rows, r => r.c);
-  const tops = Object.entries(byC).map(([c, a]) => [c, sum(a, r => r[metric])])
-    .sort((a, b) => b[1] - a[1]).slice(0, topN).map(x => x[0]);
-  const weeks = [...new Set(rows.map(r => r.w))].sort();
-  const lookup = {};
-  rows.forEach(r => lookup[r.w + "|" + r.c] = (lookup[r.w + "|" + r.c] || 0) + r[metric]);
-  const totals = weeks.map(w => tops.reduce((a, c) => a + (lookup[w + "|" + c] || 0), 0));
-  const ds = tops.map((c, i) => ({
-    label: c, backgroundColor: col(i),
-    data: weeks.map((w, wi) => totals[wi] ? 100 * (lookup[w + "|" + c] || 0) / totals[wi] : 0),
+// ── Category chart ────────────────────────────────────────────────────────────
+function renderCategoryChart() {
+  const by={};
+  filteredData.forEach(r=>{if(!r.room)return;by[r.room]=(by[r.room]||0)+r.item_revenue;});
+  const s=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const pal=['#1d3c6e','#2a5298','#1a6b7c','#3a7abf','#0f2d52','#4a90c4','#1a4a6e','#6b9fd4'];
+  if(charts['category-chart'])charts['category-chart'].destroy();
+  const ctx=document.getElementById('category-chart').getContext('2d');
+  charts['category-chart']=new Chart(ctx,{type:'doughnut',data:{labels:s.map(x=>x[0]),datasets:[{data:s.map(x=>Math.round(x[1])),backgroundColor:pal,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'right',labels:{font:{size:11},color:'#44403c',boxWidth:10,padding:8}},tooltip:{callbacks:{label:c=>' £'+fmt(c.parsed)+' ('+Math.round(c.parsed/s.reduce((a,b)=>a+b[1],0)*100)+'%)'}}}}});
+}
+
+// ── Momentum charts ───────────────────────────────────────────────────────────
+// ── Sub tab navigation ────────────────────────────────────────────────────────
+function showSubTab(id) {
+  document.querySelectorAll('.sub-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sub-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sub-'+id).classList.add('active');
+  event.target.classList.add('active');
+  if(filteredData.length) renderAllTrends();
+}
+
+// ── Master trend renderer ─────────────────────────────────────────────────────
+function renderAllTrends() {
+  const dates=[...new Set(filteredData.map(r=>r.date))].sort();
+  const mid=dates[Math.floor(dates.length/2)];
+  const early=filteredData.filter(r=>r.date<mid);
+  const recent=filteredData.filter(r=>r.date>=mid);
+  const period=v('f-period');
+
+  // Colours tab
+  renderMultiLineTrend('colour-trend-chart','colour',period,10,colourTrendMetric);
+  set('colour-trend-sub','Top 10 colours, '+period+' — '+(colourTrendMetric==='revenue'?'revenue':'units'));
+  renderMomentumChart('colour-momentum-chart',early,recent,'colour',demandMetric);
+  renderShareChart('colour-share-chart','colour');
+
+  // Materials tab
+  renderMultiLineTrend('material-trend-chart','material',period,8);
+  renderMomentumChart('material-momentum-chart',early,recent,'material',demandMetric);
+  renderShareChart('material-share-chart','material');
+
+  // Categories tab
+  renderMultiLineTrend('cat-trend-chart','room',period,8);
+  renderMomentumChart('cat-momentum-chart',early,recent,'room',demandMetric);
+  renderMomentumChart('subcat-momentum-chart',early,recent,'ptype',demandMetric);
+  renderTopColourByField('colour-by-cat-chart','room');
+  renderTopColourByField('colour-by-subcat-chart','ptype');
+
+  // Collections tab
+  renderMultiLineTrend('collection-trend-chart','collection',period,10);
+  renderMomentumChart('collection-momentum-chart',early,recent,'collection',demandMetric);
+  renderMultiLineTrend('seat-trend-chart','sofa_config',period,8);
+
+  // Sofas tab
+  renderSofaTrends();
+
+  // Heatmap tab
+  renderHeatmap();
+  renderDemandTable();
+}
+
+// ── Multi-line trend chart ────────────────────────────────────────────────────
+function renderMultiLineTrend(canvasId, field, period, topN, metricOverride) {
+  const metric = metricOverride || demandMetric;
+  // Get top N by total metric
+  const totals={};
+  filteredData.forEach(r=>{
+    const k=r[field]; if(!k||k==='Unknown'||k==='(not set)'||k==='N/A')return;
+    totals[k]=(totals[k]||0)+(metric==='revenue'?r.item_revenue:r.quantity);
+  });
+  const topKeys=Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,topN).map(x=>x[0]);
+  if(!topKeys.length)return;
+
+  // Group by period
+  const byPeriod={};
+  filteredData.forEach(r=>{
+    const k=r[field]; if(!topKeys.includes(k))return;
+    const p=periodKey(r.date,period);
+    if(!byPeriod[p])byPeriod[p]={};
+    byPeriod[p][k]=(byPeriod[p][k]||0)+(metric==='revenue'?r.item_revenue:r.quantity);
+  });
+  const periods=Object.keys(byPeriod).sort();
+
+  // Blue palette for non-colour fields, colour map for colours
+  const bluePalette=['#1d3c6e','#2a6099','#1a6b7c','#3a7abf','#15803d','#b8860b','#8b2252','#6b4c9a','#c2410c','#0f4c81'];
+  const isColour = field==='colour';
+
+  const datasets=topKeys.map((key,i)=>({
+    label:key,
+    data:periods.map(p=>(byPeriod[p]&&byPeriod[p][key])||0),
+    borderColor: isColour ? colFor(key) : bluePalette[i%bluePalette.length],
+    backgroundColor: isColour ? colFor(key)+'22' : bluePalette[i%bluePalette.length]+'22',
+    borderWidth:2, tension:0.3,
+    pointRadius:periods.length>24?0:2,
+    fill:false,
   }));
-  draw(canvasId, {type:"bar", data:{labels: weeks.map(monthLbl), datasets: ds},
-    options:{responsive:true, maintainAspectRatio:false,
-      scales:{x:{stacked:true, ticks:{maxTicksLimit:18, maxRotation:45}}, y:{stacked:true, max:100, ticks:{callback:v => v + "%"}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}},
-        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}}}});
-}
 
-function weeklyLines(canvasId, rows, metric, topN, fmt){
-  const byC = groupBy(rows, r => r.c);
-  const tops = Object.entries(byC).map(([c, a]) => [c, sum(a, r => r.r)])
-    .sort((a, b) => b[1] - a[1]).slice(0, topN).map(x => x[0]);
-  const weeks = [...new Set(rows.map(r => r.w))].sort();
-  const lookup = {};
-  rows.forEach(r => lookup[r.w + "|" + r.c] = r);
-  const ds = tops.map((c, i) => ({
-    label: c, borderColor: col(i), backgroundColor: col(i), borderWidth: 1.8, pointRadius: 0, tension: .25,
-    data: weeks.map(w => {
-      const r = lookup[w + "|" + c];
-      if (!r) return 0;
-      if (metric === "cvr") return r.s ? 100 * r.t / r.s : 0;
-      return r[metric];
-    }),
-  }));
-  draw(canvasId, {type:"line", data:{labels: weeks.map(monthLbl), datasets: ds},
-    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
-      scales:{x:{ticks:{maxTicksLimit:18, maxRotation:45}}, y:{ticks:{callback: fmt}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
-}
-
-// KPI table with WoW deltas + heatmap, for category/subcategory summaries
-function kpiTable(rows, dimLabel){
-  const cw = D.meta.cur_weeks, pw = D.meta.prev_weeks;
-  const aggByCat = arr => { const m = {}; arr.forEach(r => { const o = m[r.c] || (m[r.c] = {s:0, iv:0, t:0, ip:0, r:0}); o.s += r.s; o.iv += r.iv; o.t += r.t; o.ip += r.ip; o.r += (r.r || 0); }); return m; };
-  const cur = aggByCat(rows.filter(r => cw.includes(r.w)));
-  const prev = aggByCat(rows.filter(r => pw.includes(r.w)));
-  const cats = Object.keys(cur).map(c => {
-    const a = cur[c], b = prev[c] || {};
-    return {c, s:a.s, t:a.t, ip:a.ip, r:a.r, cvr: a.s ? a.t/a.s : 0, aov: a.t ? a.r/a.t : 0,
-            s_p:b.s||0, t_p:b.t||0, r_p:b.r||0, cvr_p: b.s ? b.t/b.s : 0, aov_p: b.t ? b.r/b.t : 0};
-  }).sort((a, b) => b.r - a.r);
-  const totR = sum(cats, x => x.r);
-  const mx = f => Math.max(...cats.map(x => x[f]), 1);
-  const M = {s:mx("s"), t:mx("t"), cvr:mx("cvr"), r:mx("r"), aov:mx("aov")};
-  let html = `<table><thead><tr><th>${dimLabel}</th><th>Sessions</th><th></th><th>Trans.</th><th></th>
-    <th>CVR</th><th></th><th>Revenue</th><th></th><th>Rev. share</th><th>AOV</th><th></th></tr></thead><tbody>`;
-  for (const x of cats) {
-    html += `<tr><td class="name">${x.c}</td>
-      <td style="${heat(x.s, M.s, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
-      <td style="${heat(x.t, M.t, 175)}">${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
-      <td style="${heat(x.cvr, M.cvr, 320)}">${pct(x.cvr)}</td><td>${dl(x.cvr, x.cvr_p)}</td>
-      <td style="${heat(x.r, M.r, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
-      <td>${totR ? (100*x.r/totR).toFixed(1) : 0}%</td>
-      <td style="${heat(x.aov, M.aov, 95)}">${gbp(x.aov)}</td><td>${dl(x.aov, x.aov_p)}</td></tr>`;
-  }
-  const t = {s:sum(cats,x=>x.s), t:sum(cats,x=>x.t), r:totR,
-             s_p:sum(cats,x=>x.s_p), t_p:sum(cats,x=>x.t_p), r_p:sum(cats,x=>x.r_p)};
-  html += `<tr class="total"><td>Grand total</td><td>${num(t.s)}</td><td>${dl(t.s,t.s_p)}</td>
-    <td>${num(t.t)}</td><td>${dl(t.t,t.t_p)}</td>
-    <td>${t.s?pct(t.t/t.s):"-"}</td><td>${dl(t.s?t.t/t.s:0, t.s_p?t.t_p/t.s_p:0)}</td>
-    <td>${gbp(t.r)}</td><td>${dl(t.r,t.r_p)}</td><td>100%</td>
-    <td>${t.t?gbp(t.r/t.t):"-"}</td><td></td></tr></tbody></table>`;
-  return html;
-}
-
-/* ============================== tab 1: category summary ============================== */
-function renderCategory(){
-  const rows = D.weekly_category;
-  const pg = document.getElementById("pg_cat");
-  pg.innerHTML = weeklyKpis(rows) + `
-    <div class="card"><h2>Category KPIs — last week <span class="sub">vs previous week</span></h2>
-      <div class="body" style="overflow-x:auto">${kpiTable(rows, "Item category")}</div></div>
-    <div class="card"><h2>Category share by transactions <span class="sub">weekly, 100% stacked</span></h2>
-      <div class="body chartbox"><canvas id="c_cat_t"></canvas></div></div>
-    <div class="card"><h2>Category conversion rate <span class="sub">weekly CVR by category</span></h2>
-      <div class="body chartbox"><canvas id="c_cat_cvr"></canvas></div></div>
-    <div class="card"><h2>Category share by revenue <span class="sub">weekly, 100% stacked</span></h2>
-      <div class="body chartbox"><canvas id="c_cat_r"></canvas></div></div>
-    <div class="card"><h2>Sessions by calendar month <span class="sub">all years combined, 100% stacked</span></h2>
-      <div class="body chartbox"><canvas id="c_cat_m"></canvas></div></div>`;
-  stacked100("c_cat_t", rows, "t", 9);
-  weeklyLines("c_cat_cvr", rows, "cvr", 8, v => v.toFixed(2) + "%");
-  stacked100("c_cat_r", rows, "r", 9);
-  // monthly stacked
-  const mrows = D.monthly_category;
-  const cats = Object.entries(groupBy(mrows, r => r.c)).map(([c, a]) => [c, sum(a, r => r.s)])
-    .sort((a, b) => b[1] - a[1]).slice(0, 9).map(x => x[0]);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const lk = {}; mrows.forEach(r => lk[r.m + "|" + r.c] = r.s);
-  const tot = months.map((_, i) => cats.reduce((a, c) => a + (lk[(i+1) + "|" + c] || 0), 0));
-  draw("c_cat_m", {type:"bar",
-    data:{labels: months, datasets: cats.map((c, i) => ({label: c, backgroundColor: col(i),
-      data: months.map((_, mi) => tot[mi] ? 100 * (lk[(mi+1) + "|" + c] || 0) / tot[mi] : 0)}))},
-    options:{responsive:true, maintainAspectRatio:false,
-      scales:{x:{stacked:true}, y:{stacked:true, max:100, ticks:{callback:v => v + "%"}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
-}
-
-/* ============================== tab 2: sub-category summary ============================== */
-function renderSubcategory(){
-  const rows = D.weekly_subcategory.filter(r => r.c !== "Other" && r.c !== "(not set)");
-  const pg = document.getElementById("pg_sub");
-  pg.innerHTML = weeklyKpis(D.weekly_subcategory) + `
-    <div class="card"><h2>Sub-category KPIs — last week <span class="sub">vs previous week, top 15 by revenue</span></h2>
-      <div class="body" style="overflow-x:auto" id="subTable"></div></div>
-    <div class="card"><h2>Transactions by sub-category <span class="sub">weekly, top 6</span></h2>
-      <div class="body chartbox"><canvas id="c_sub_t"></canvas></div></div>
-    <div class="card"><h2>Conversion rate by sub-category <span class="sub">weekly, top 6</span></h2>
-      <div class="body chartbox"><canvas id="c_sub_cvr"></canvas></div></div>
-    <div class="card"><h2>Revenue by sub-category <span class="sub">weekly, top 6</span></h2>
-      <div class="body chartbox"><canvas id="c_sub_r"></canvas></div></div>
-    <div class="card"><h2>Sessions by sub-category <span class="sub">weekly, top 6</span></h2>
-      <div class="body chartbox"><canvas id="c_sub_s"></canvas></div></div>`;
-  // trim the table to top 15 subcats by last-week revenue
-  const cw = D.meta.cur_weeks;
-  const top15 = Object.entries(groupBy(rows.filter(r => cw.includes(r.w)), r => r.c))
-    .map(([c, a]) => [c, sum(a, r => r.r)]).sort((a, b) => b[1] - a[1]).slice(0, 15).map(x => x[0]);
-  document.getElementById("subTable").innerHTML =
-    kpiTable(rows.filter(r => top15.includes(r.c)), "Sub-category");
-  weeklyLines("c_sub_t", rows, "t", 6, num);
-  weeklyLines("c_sub_cvr", rows, "cvr", 6, v => v.toFixed(2) + "%");
-  weeklyLines("c_sub_r", rows, "r", 6, v => "£" + (v/1000).toFixed(0) + "k");
-  weeklyLines("c_sub_s", rows, "s", 6, v => (v/1000).toFixed(0) + "k");
-}
-
-/* ============================== focus tabs ============================== */
-function yoyLine(canvasId, daily, field, fmt, agg){
-  // aggregate to weekly for readability; overlay same weeks last year (shift 364d)
-  const byW = {};
-  daily.forEach(r => {
-    const d = new Date(r.d + "T00:00:00");
-    const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const w = mon.toISOString().slice(0, 10);
-    byW[w] = byW[w] || {s:0, t:0, r:0, ip:0};
-    byW[w].s += r.s; byW[w].t += r.t; byW[w].r += r.r; byW[w].ip += r.ip;
+  if(charts[canvasId])charts[canvasId].destroy();
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  charts[canvasId]=new Chart(ctx,{
+    type:'line',
+    data:{labels:periods,datasets},
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:10,padding:6,color:'#3c4a6b'}}
+      },
+      scales:{
+        y:{beginAtZero:true,grid:{color:'#efece3'},ticks:{color:'#8089a0',font:{size:10},callback:n=>metric==='revenue'?'£'+fmt(n):fmt(n)}},
+        x:{grid:{display:false},ticks:{color:'#8089a0',font:{size:10},maxTicksLimit:14}}
+      }
+    }
   });
-  const weeks = Object.keys(byW).sort();
-  const val = w => {
-    const x = byW[w]; if (!x) return null;
-    return field === "cvr" ? (x.s ? 100 * x.t / x.s : 0) : x[field];
+}
+
+// ── Share (doughnut) chart ────────────────────────────────────────────────────
+function renderShareChart(canvasId, field) {
+  const by={};
+  filteredData.forEach(r=>{
+    const k=r[field]; if(!k||k==='Unknown'||k==='(not set)'||k==='N/A')return;
+    by[k]=(by[k]||0)+(demandMetric==='revenue'?r.item_revenue:r.quantity);
+  });
+  const sorted=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const isColour=field==='colour';
+  const bluePal=['#1d3c6e','#2a6099','#1a6b7c','#3a7abf','#15803d','#b8860b','#8b2252','#6b4c9a','#c2410c','#0f4c81'];
+  const colors=sorted.map((x,i)=>isColour?colFor(x[0]):bluePal[i%bluePal.length]);
+  const total=sorted.reduce((s,x)=>s+x[1],0);
+
+  if(charts[canvasId])charts[canvasId].destroy();
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  charts[canvasId]=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels:sorted.map(x=>x[0]),datasets:[{data:sorted.map(x=>Math.round(x[1])),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:10,padding:5,color:'#3c4a6b'}},
+        tooltip:{callbacks:{label:c=>` ${demandMetric==='revenue'?'£':''}${fmt(c.parsed)} (${Math.round(c.parsed/total*100)}%)`}}
+      }
+    }
+  });
+}
+
+// ── Top colour by field (bar chart with colour dots) ─────────────────────────
+function renderTopColourByField(canvasId, field) {
+  // For each unique field value, find the top colour by revenue
+  const byFieldColour={};
+  filteredData.forEach(r=>{
+    const fv=r[field]; const col=r.colour;
+    if(!fv||!col||col==='Unknown')return;
+    if(!byFieldColour[fv])byFieldColour[fv]={};
+    byFieldColour[fv][col]=(byFieldColour[fv][col]||0)+(demandMetric==='revenue'?r.item_revenue:r.quantity);
+  });
+
+  // Sort field values by total revenue
+  const fieldTotals={};
+  filteredData.forEach(r=>{if(r[field])fieldTotals[r[field]]=(fieldTotals[r[field]]||0)+r.item_revenue;});
+  const sortedFields=Object.entries(fieldTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]);
+
+  const labels=[], values=[], colors=[], topColours=[];
+  sortedFields.forEach(fv=>{
+    const colData=byFieldColour[fv]||{};
+    const top=Object.entries(colData).sort((a,b)=>b[1]-a[1])[0];
+    if(!top)return;
+    labels.push(fv);
+    values.push(Math.round(top[1]));
+    colors.push(colFor(top[0]));
+    topColours.push(top[0]);
+  });
+
+  if(charts[canvasId])charts[canvasId].destroy();
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  charts[canvasId]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:values,backgroundColor:colors,borderRadius:3,borderWidth:0}]},
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          title:c=>[c[0].label],
+          label:c=>`Top colour: ${topColours[c.dataIndex]} — ${demandMetric==='revenue'?'£':''}${fmt(c.parsed)}`
+        }}
+      },
+      scales:{
+        x:{beginAtZero:true,grid:{color:'#efece3'},ticks:{color:'#8089a0',font:{size:10},callback:n=>'£'+fmt(n)}},
+        y:{grid:{display:false},ticks:{color:'#3c4a6b',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// ── Sofa config trends ───────────────────────────────────────────────────────
+let sofaMetric = 'revenue';
+
+function setSofaMetric(m) {
+  sofaMetric = m;
+  ['revenue','units'].forEach(x=>{
+    const el=document.getElementById('sm-'+x);
+    if(el) el.classList.toggle('active', x===m);
+  });
+  if(filteredData.length) renderSofaTrends();
+}
+
+function renderSofaTrends() {
+  const period = v('f-period');
+  // Only sofa products
+  const sofaData = filteredData.filter(r => r.sofa_config && r.sofa_config !== null);
+  if (!sofaData.length) return;
+
+  const dates=[...new Set(sofaData.map(r=>r.date))].sort();
+  const mid=dates[Math.floor(dates.length/2)];
+  const early=sofaData.filter(r=>r.date<mid);
+  const recent=sofaData.filter(r=>r.date>=mid);
+
+  // Get top configs by total
+  const totals={};
+  sofaData.forEach(r=>{
+    totals[r.sofa_config]=(totals[r.sofa_config]||0)+(sofaMetric==='revenue'?r.item_revenue:r.quantity);
+  });
+  const topConfigs=Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>x[0]);
+
+  // Colour palette — ordered to make 2/3/4 seater visually distinct
+  const configColours={
+    '2 Seater':'#1d3c6e',
+    '3 Seater':'#2a6099',
+    '4 Seater':'#1a6b7c',
+    '5 Seater':'#0f4c81',
+    'Corner':'#c2410c',
+    'Chaise':'#b8860b',
+    'Sofa Bed':'#6b4c9a',
+    'Modular':'#15803d',
+    'Snuggler':'#8b2252',
+    'Loveseat':'#d97706',
+    'Recliner':'#059669',
+    'Armchair':'#0891b2',
+    'Large':'#4a5568',
+    'Medium':'#718096',
+    'Small':'#a0aec0',
+    'Extra Large':'#2d3748',
+    'Other':'#cbd5e0',
   };
-  const start = weeks.length > 56 ? weeks.slice(-56) : weeks; // show last ~13 months
-  const ly = w => { const d = new Date(w + "T00:00:00"); d.setDate(d.getDate() - 364); return d.toISOString().slice(0, 10); };
-  draw(canvasId, {type:"line",
-    data:{labels: start.map(monthLbl), datasets:[
-      {label:"This year", data: start.map(val), borderColor:"#1f3d33", backgroundColor:"#1f3d33", borderWidth:2, pointRadius:0, tension:.25},
-      {label:"Previous year", data: start.map(w => val(ly(w))), borderColor:"#b0a893", backgroundColor:"#b0a893", borderWidth:1.5, borderDash:[5,4], pointRadius:0, tension:.25},
-    ]},
-    options:{responsive:true, maintainAspectRatio:false, interaction:{mode:"index", intersect:false},
-      scales:{x:{ticks:{maxTicksLimit:14}}, y:{ticks:{callback: fmt}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}}}}});
-}
 
-function stackedDaily(canvasId, rows, dimField){
-  const tops = Object.entries(groupBy(rows, r => r[dimField])).map(([c, a]) => [c, sum(a, r => r.r)])
-    .sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
-  const days = [...new Set(rows.map(r => r.d))].sort();
-  const lk = {};
-  rows.forEach(r => {
-    const key = r.d + "|" + (tops.includes(r[dimField]) ? r[dimField] : "Other");
-    lk[key] = (lk[key] || 0) + r.r;
+  // Multi-line trend
+  const byPeriod={};
+  sofaData.forEach(r=>{
+    if(!topConfigs.includes(r.sofa_config))return;
+    const p=periodKey(r.date,period);
+    if(!byPeriod[p])byPeriod[p]={};
+    byPeriod[p][r.sofa_config]=(byPeriod[p][r.sofa_config]||0)+(sofaMetric==='revenue'?r.item_revenue:r.quantity);
   });
-  const dims = tops.concat(rows.some(r => !tops.includes(r[dimField])) ? ["Other"] : []);
-  draw(canvasId, {type:"bar",
-    data:{labels: days.map(shortDate), datasets: dims.map((c, i) => ({label: c,
-      backgroundColor: c === "Other" ? "#cfc9bb" : col(i), data: days.map(d => lk[d + "|" + c] || 0)}))},
-    options:{responsive:true, maintainAspectRatio:false,
-      scales:{x:{stacked:true, ticks:{maxTicksLimit:14, maxRotation:45}}, y:{stacked:true, ticks:{callback:v => "£" + (v/1000).toFixed(0) + "k"}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}},
-        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${gbp(c.parsed.y)}`}}}}});
+  const periods=Object.keys(byPeriod).sort();
+
+  const datasets=topConfigs.map(cfg=>({
+    label:cfg,
+    data:periods.map(p=>(byPeriod[p]&&byPeriod[p][cfg])||0),
+    borderColor:configColours[cfg]||'#999',
+    backgroundColor:(configColours[cfg]||'#999')+'22',
+    borderWidth:2.5, tension:0.3,
+    pointRadius:periods.length>24?0:3,
+    fill:false,
+  }));
+
+  if(charts['sofa-trend-chart'])charts['sofa-trend-chart'].destroy();
+  const ctx=document.getElementById('sofa-trend-chart').getContext('2d');
+  charts['sofa-trend-chart']=new Chart(ctx,{
+    type:'line',
+    data:{labels:periods,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12,padding:8,color:'#3c4a6b'}}},
+      scales:{
+        y:{beginAtZero:true,grid:{color:'#efece3'},ticks:{color:'#8089a0',font:{size:10},callback:n=>sofaMetric==='revenue'?'£'+fmt(n):fmt(n)}},
+        x:{grid:{display:false},ticks:{color:'#8089a0',font:{size:10},maxTicksLimit:14}}
+      }
+    }
+  });
+
+  // Momentum chart
+  const earlyMap={},recentMap={};
+  early.forEach(r=>{if(topConfigs.includes(r.sofa_config))earlyMap[r.sofa_config]=(earlyMap[r.sofa_config]||0)+(sofaMetric==='revenue'?r.item_revenue:r.quantity);});
+  recent.forEach(r=>{if(topConfigs.includes(r.sofa_config))recentMap[r.sofa_config]=(recentMap[r.sofa_config]||0)+(sofaMetric==='revenue'?r.item_revenue:r.quantity);});
+  const changes=topConfigs.map(k=>{
+    const ev=earlyMap[k]||0,rv=recentMap[k]||0;
+    const pct=ev>0?((rv-ev)/ev*100):rv>0?100:0;
+    return{k,pct,ev,rv};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  if(charts['sofa-momentum-chart'])charts['sofa-momentum-chart'].destroy();
+  const ctx2=document.getElementById('sofa-momentum-chart').getContext('2d');
+  charts['sofa-momentum-chart']=new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:changes.map(x=>x.k),
+      datasets:[{
+        data:changes.map(x=>Math.round(x.pct)),
+        backgroundColor:changes.map(x=>x.pct>=0?'rgba(26,122,74,0.75)':'rgba(184,50,50,0.75)'),
+        borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+        const item=changes[c.dataIndex];
+        return ` ${c.parsed>=0?'▲':'▼'} ${Math.abs(Math.round(c.parsed))}% | Early: ${sofaMetric==='revenue'?'£':''}${fmt(item.ev)} → Recent: ${sofaMetric==='revenue'?'£':''}${fmt(item.rv)}`;
+      }}}},
+      scales:{
+        x:{ticks:{callback:n=>(n>=0?'+':'')+n+'%',color:'#8089a0',font:{size:10}},grid:{color:'#efece3'}},
+        y:{grid:{display:false},ticks:{color:'#3c4a6b',font:{size:11}}}
+      }
+    }
+  });
+
+  // Share doughnut
+  const sharePal=topConfigs.map(k=>configColours[k]||'#999');
+  if(charts['sofa-share-chart'])charts['sofa-share-chart'].destroy();
+  const ctx3=document.getElementById('sofa-share-chart').getContext('2d');
+  const shareVals=topConfigs.map(k=>Math.round(totals[k]||0));
+  const shareTotal=shareVals.reduce((a,b)=>a+b,0);
+  charts['sofa-share-chart']=new Chart(ctx3,{
+    type:'doughnut',
+    data:{labels:topConfigs,datasets:[{data:shareVals,backgroundColor:sharePal,borderWidth:2,borderColor:'#fff'}]},
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:11},boxWidth:12,padding:6}},
+        tooltip:{callbacks:{label:c=>` ${sofaMetric==='revenue'?'£':''}${fmt(c.parsed)} (${Math.round(c.parsed/shareTotal*100)}%)`}}
+      }
+    }
+  });
+
+  // Top colour by sofa config
+  renderTopColourByFieldCustom('sofa-colour-chart', sofaData, 'sofa_config', sofaMetric);
 }
 
-function renderFocus(k, label){
-  const pg = document.getElementById("pg_f_" + k);
-  const daily = D.daily_focus.filter(r => r.k === k);
-  const cs = D.meta.cur_start, ce = D.meta.cur_end, ps = D.meta.prev_start;
-  const inRange = (d, a, b) => d >= a && d <= b;
-  const cur = daily.filter(r => inRange(r.d, cs, ce));
-  const prev = daily.filter(r => inRange(r.d, ps, cs) && r.d < cs);
-  const m = a => ({s:sum(a,r=>r.s), t:sum(a,r=>r.t), ip:sum(a,r=>r.ip), r:sum(a,r=>r.r)});
-  const c = m(cur), p = m(prev);
-  const items = D.items_wow.filter(r => r.k === k && (r.r > 0 || r.s > 100))
-    .sort((a, b) => b.r - a.r).slice(0, 25);
-  const mxR = Math.max(...items.map(x => x.r), 1), mxS = Math.max(...items.map(x => x.s), 1);
-  pg.innerHTML = kpiRow([
-    {l:"Sessions", v:num(c.s), d:dl(c.s, p.s)},
-    {l:"Items purchased", v:num(c.ip), d:dl(c.ip, p.ip)},
-    {l:"Transactions", v:num(c.t), d:dl(c.t, p.t)},
-    {l:"Purchase conversion", v:c.s?pct(c.t/c.s):"-", d:dl(c.s?c.t/c.s:0, p.s?p.t/p.s:0)},
-    {l:"Item revenue", v:gbp(c.r), d:dl(c.r, p.r)},
-    {l:"AOV", v:c.t?gbp(c.r/c.t):"-", d:dl(c.t?c.r/c.t:0, p.t?p.r/p.t:0)},
-  ]) + `
-    <div class="card"><h2>${label} — item detail, last week <span class="sub">top 25 by revenue, WoW deltas</span></h2>
-      <div class="body" style="overflow-x:auto"><table><thead><tr>
-        <th>Item name</th><th>Revenue</th><th></th><th>Sessions</th><th></th>
-        <th>Transactions</th><th>Items purchased</th><th>CVR</th></tr></thead><tbody>` +
-    items.map(x => `<tr><td class="name" title="${x.n}">${x.n}</td>
-      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
-      <td style="${heat(x.s, mxS, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
-      <td>${num(x.t)}</td><td>${num(x.ip)}</td><td>${x.s ? pct(x.t/x.s) : "-"}</td></tr>`).join("") +
-    `</tbody></table></div></div>
-    <div class="card"><h2>Revenue vs last year <span class="sub">weekly</span></h2>
-      <div class="body chartbox"><canvas id="cf_r_${k}"></canvas></div></div>
-    <div class="twocol">
-      <div class="card"><h2>Revenue by range <span class="sub">daily, last 28 days</span></h2>
-        <div class="body chartbox"><canvas id="cf_rg_${k}"></canvas></div></div>
-      <div class="card"><h2>Revenue by item type <span class="sub">daily, last 28 days</span></h2>
-        <div class="body chartbox"><canvas id="cf_ty_${k}"></canvas></div></div>
-    </div>
-    <div class="card"><h2>Sessions vs last year <span class="sub">weekly</span></h2>
-      <div class="body chartbox"><canvas id="cf_s_${k}"></canvas></div></div>
-    <div class="card"><h2>Conversion rate vs last year <span class="sub">weekly</span></h2>
-      <div class="body chartbox"><canvas id="cf_c_${k}"></canvas></div></div>`;
-  yoyLine("cf_r_" + k, daily, "r", v => "£" + (v/1000).toFixed(0) + "k");
-  yoyLine("cf_s_" + k, daily, "s", v => (v/1000).toFixed(1) + "k");
-  yoyLine("cf_c_" + k, daily, "cvr", v => v.toFixed(2) + "%");
-  const bd = D.focus_breakdown.filter(r => r.k === k);
-  stackedDaily("cf_rg_" + k, bd, "rg");
-  stackedDaily("cf_ty_" + k, bd, "c2");
-}
-
-/* ============================== tab: items WoW ============================== */
-const itemsState = {sort:"s", dir:-1, page:0, q:"", cat:"", per:50};
-function renderItems(){
-  const pg = document.getElementById("pg_items");
-  const cats = [...new Set(D.items_wow.map(r => r.c).filter(Boolean))].sort();
-  pg.innerHTML = `
-    <div class="controls">
-      <input type="search" id="itQ" placeholder="Search item name…">
-      <label>Category</label>
-      <select id="itC"><option value="">All categories</option>${cats.map(c => `<option>${c}</option>`).join("")}</select>
-      <button class="btn" id="itCsv">Export CSV</button>
-    </div>
-    <div class="card"><h2>Item detail — week on week <span class="sub">last full week vs prior; click headers to sort</span></h2>
-      <div class="body" style="overflow-x:auto" id="itTable"></div>
-      <div class="pager"><span id="itInfo"></span>
-        <button class="btn" id="itPrev">‹</button><button class="btn" id="itNext">›</button></div>
-    </div>`;
-  document.getElementById("itQ").oninput = e => { itemsState.q = e.target.value.toLowerCase(); itemsState.page = 0; drawItems(); };
-  document.getElementById("itC").onchange = e => { itemsState.cat = e.target.value; itemsState.page = 0; drawItems(); };
-  document.getElementById("itPrev").onclick = () => { if (itemsState.page > 0) { itemsState.page--; drawItems(); } };
-  document.getElementById("itNext").onclick = () => { itemsState.page++; drawItems(); };
-  document.getElementById("itCsv").onclick = () => exportCsv(filteredItems(),
-    ["n","c","c2","r","r_p","s","s_p","t","t_p","ip","ip_p"],
-    ["Item name","Category","Sub-category","Revenue","Revenue prev","Sessions","Sessions prev","Transactions","Transactions prev","Items purchased","Items purchased prev"],
-    "items_wow.csv");
-  drawItems();
-}
-function filteredItems(){
-  let rows = D.items_wow;
-  if (itemsState.q) rows = rows.filter(r => r.n.toLowerCase().includes(itemsState.q));
-  if (itemsState.cat) rows = rows.filter(r => r.c === itemsState.cat);
-  const f = itemsState.sort;
-  return [...rows].sort((a, b) => itemsState.dir * ((a[f] || 0) > (b[f] || 0) ? 1 : -1));
-}
-function drawItems(){
-  const rows = filteredItems();
-  const pageMax = Math.max(0, Math.ceil(rows.length / itemsState.per) - 1);
-  itemsState.page = Math.min(itemsState.page, pageMax);
-  const slice = rows.slice(itemsState.page * itemsState.per, (itemsState.page + 1) * itemsState.per);
-  const mxR = Math.max(...rows.map(x => x.r), 1), mxS = Math.max(...rows.map(x => x.s), 1);
-  const H = (f, lbl) => `<th data-f="${f}" class="${itemsState.sort===f?"sorton":""}">${lbl}${itemsState.sort===f?(itemsState.dir<0?" ↓":" ↑"):""}</th>`;
-  document.getElementById("itTable").innerHTML = `<table><thead><tr>
-    <th style="text-align:right">#</th>${H("c","Category")}${H("n","Item name")}
-    ${H("r","Revenue")}<th></th>${H("s","Sessions")}<th></th>${H("t","Trans.")}<th></th>${H("ip","Items")}<th></th></tr></thead><tbody>` +
-    slice.map((x, i) => `<tr>
-      <td>${itemsState.page * itemsState.per + i + 1}.</td>
-      <td style="text-align:left;color:var(--ink-soft);font-size:11px">${x.c || "-"}</td>
-      <td class="name" title="${x.n}">${x.n}</td>
-      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
-      <td style="${heat(x.s, mxS, 175)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
-      <td>${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
-      <td>${num(x.ip)}</td><td>${dl(x.ip, x.ip_p)}</td></tr>`).join("") +
-    `<tr class="total"><td></td><td></td><td>Total (filtered)</td>
-      <td>${gbp(sum(rows, x => x.r))}</td><td>${dl(sum(rows,x=>x.r), sum(rows,x=>x.r_p))}</td>
-      <td>${num(sum(rows, x => x.s))}</td><td>${dl(sum(rows,x=>x.s), sum(rows,x=>x.s_p))}</td>
-      <td>${num(sum(rows, x => x.t))}</td><td>${dl(sum(rows,x=>x.t), sum(rows,x=>x.t_p))}</td>
-      <td>${num(sum(rows, x => x.ip))}</td><td>${dl(sum(rows,x=>x.ip), sum(rows,x=>x.ip_p))}</td></tr>
-    </tbody></table>`;
-  document.getElementById("itInfo").textContent =
-    `${itemsState.page * itemsState.per + 1}–${Math.min(rows.length, (itemsState.page + 1) * itemsState.per)} of ${rows.length}`;
-  document.querySelectorAll("#itTable th[data-f]").forEach(th => th.onclick = () => {
-    const f = th.dataset.f;
-    if (itemsState.sort === f) itemsState.dir *= -1; else { itemsState.sort = f; itemsState.dir = -1; }
-    drawItems();
+function renderTopColourByFieldCustom(canvasId, data, field, metric) {
+  const byFieldColour={};
+  data.forEach(r=>{
+    const fv=r[field]; const col=r.colour;
+    if(!fv||!col||col==='Unknown')return;
+    if(!byFieldColour[fv])byFieldColour[fv]={};
+    byFieldColour[fv][col]=(byFieldColour[fv][col]||0)+(metric==='revenue'?r.item_revenue:r.quantity);
+  });
+  const fieldTotals={};
+  data.forEach(r=>{if(r[field])fieldTotals[r[field]]=(fieldTotals[r[field]]||0)+r.item_revenue;});
+  const sortedFields=Object.entries(fieldTotals).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>x[0]);
+  const labels=[],values=[],colors=[],topColours=[];
+  sortedFields.forEach(fv=>{
+    const top=Object.entries(byFieldColour[fv]||{}).sort((a,b)=>b[1]-a[1])[0];
+    if(!top)return;
+    labels.push(fv); values.push(Math.round(top[1])); colors.push(colFor(top[0])); topColours.push(top[0]);
+  });
+  if(charts[canvasId])charts[canvasId].destroy();
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  charts[canvasId]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:values,backgroundColor:colors,borderRadius:3,borderWidth:0}]},
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:c=>`Top colour: ${topColours[c.dataIndex]} — ${metric==='revenue'?'£':''}${fmt(c.parsed)}`
+      }}},
+      scales:{
+        x:{beginAtZero:true,grid:{color:'#efece3'},ticks:{color:'#8089a0',font:{size:10},callback:n=>'£'+fmt(n)}},
+        y:{grid:{display:false},ticks:{color:'#3c4a6b',font:{size:11}}}
+      }
+    }
   });
 }
 
-/* ============================== tab: item detail + channels ============================== */
-const detState = {sort:"r", dir:-1, page:0, q:"", per:50};
-function renderDetail(){
-  const pg = document.getElementById("pg_detail");
-  pg.innerHTML = `
-    <div class="controls">
-      <input type="search" id="dtQ" placeholder="Search item name or ID…">
-      <button class="btn" id="dtCsv">Export CSV</button>
-    </div>
-    <div class="card"><h2>Item detail — last week <span class="sub">with item IDs</span></h2>
-      <div class="body" style="overflow-x:auto" id="dtTable"></div>
-      <div class="pager"><span id="dtInfo"></span>
-        <button class="btn" id="dtPrev">‹</button><button class="btn" id="dtNext">›</button></div>
-    </div>
-    <div class="card"><h2>Channel performance — last week <span class="sub">vs previous week, session default channel grouping</span></h2>
-      <div class="body" style="overflow-x:auto" id="chTable"></div>
-      <div class="note">Sessions here are all site sessions by channel (not item-scoped).</div></div>
-    <div class="card"><h2>Revenue by channel <span class="sub">daily, last 14 days</span></h2>
-      <div class="body chartbox"><canvas id="c_ch"></canvas></div></div>`;
-  document.getElementById("dtQ").oninput = e => { detState.q = e.target.value.toLowerCase(); detState.page = 0; drawDetail(); };
-  document.getElementById("dtPrev").onclick = () => { if (detState.page > 0) { detState.page--; drawDetail(); } };
-  document.getElementById("dtNext").onclick = () => { detState.page++; drawDetail(); };
-  document.getElementById("dtCsv").onclick = () => exportCsv(filteredDet(),
-    ["n","id","c","c2","b","ip","r","t","s"],
-    ["Item name","Item ID","Category","Sub-category","Brand","Items purchased","Revenue","Transactions","Sessions"],
-    "item_detail.csv");
-  drawDetail();
-  drawChannels();
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function renderHeatmap() {
+  const by={};
+  const colours=new Set(), cats=new Set();
+  filteredData.forEach(r=>{
+    const col=r.colour, cat=r.room;
+    if(!col||col==='Unknown'||!cat)return;
+    const k=`${col}||${cat}`;
+    by[k]=(by[k]||0)+(demandMetric==='revenue'?r.item_revenue:r.quantity);
+    colours.add(col); cats.add(cat);
+  });
+
+  // Get top colours and cats by total
+  const colTotals={}, catTotals={};
+  filteredData.forEach(r=>{
+    if(r.colour&&r.colour!=='Unknown')colTotals[r.colour]=(colTotals[r.colour]||0)+r.item_revenue;
+    if(r.room)catTotals[r.room]=(catTotals[r.room]||0)+r.item_revenue;
+  });
+  const topCols=Object.entries(colTotals).sort((a,b)=>b[1]-a[1]).slice(0,15).map(x=>x[0]);
+  const topCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
+
+  const maxVal=Math.max(...topCols.flatMap(col=>topCats.map(cat=>by[`${col}||${cat}`]||0)));
+
+  const header='<tr><th>Colour</th>'+topCats.map(c=>`<th>${c}</th>`).join('')+'</tr>';
+  const rows=topCols.map(col=>{
+    const cells=topCats.map(cat=>{
+      const val=by[`${col}||${cat}`]||0;
+      const intensity=maxVal>0?val/maxVal:0;
+      const alpha=Math.round(intensity*200);
+      const bg=`rgba(29,60,110,${intensity.toFixed(2)})`;
+      const textColor=intensity>0.5?'#fff':'var(--ink-2)';
+      return `<td style="background:${bg};color:${textColor}">${val>0?(demandMetric==='revenue'?'£'+fmt(val):fmt(val)):''}</td>`;
+    }).join('');
+    const dot=`<span class="cdot" style="background:${colFor(col)}"></span>`;
+    return `<tr><td class="heatmap-row-label">${dot}${col}</td>${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('heatmap-container').innerHTML=
+    `<table class="heatmap-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
 }
-function filteredDet(){
-  let rows = D.items_wow.filter(r => r.s > 0 || r.r > 0);
-  if (detState.q) rows = rows.filter(r => r.n.toLowerCase().includes(detState.q) || (r.id || "").toLowerCase().includes(detState.q));
-  const f = detState.sort;
-  return [...rows].sort((a, b) => detState.dir * ((a[f] || 0) > (b[f] || 0) ? 1 : -1));
-}
-function drawDetail(){
-  const rows = filteredDet();
-  detState.page = Math.min(detState.page, Math.max(0, Math.ceil(rows.length / detState.per) - 1));
-  const slice = rows.slice(detState.page * detState.per, (detState.page + 1) * detState.per);
-  const H = (f, lbl) => `<th data-f="${f}" class="${detState.sort===f?"sorton":""}">${lbl}${detState.sort===f?(detState.dir<0?" ↓":" ↑"):""}</th>`;
-  document.getElementById("dtTable").innerHTML = `<table><thead><tr>
-    ${H("n","Item name")}<th>Item ID</th>${H("ip","Items purchased")}${H("r","Item revenue")}${H("t","Transactions")}${H("s","Sessions")}<th>CVR</th></tr></thead><tbody>` +
-    slice.map(x => `<tr><td class="name" title="${x.n}">${x.n}</td>
-      <td style="text-align:left;font-size:11px;color:var(--ink-soft)">${x.id || "-"}</td>
-      <td>${num(x.ip)}</td><td>${gbp(x.r)}</td><td>${num(x.t)}</td><td>${num(x.s)}</td>
-      <td>${x.s ? pct(x.t/x.s) : "-"}</td></tr>`).join("") + `</tbody></table>`;
-  document.getElementById("dtInfo").textContent =
-    `${detState.page * detState.per + 1}–${Math.min(rows.length, (detState.page + 1) * detState.per)} of ${rows.length}`;
-  document.querySelectorAll("#dtTable th[data-f]").forEach(th => th.onclick = () => {
-    const f = th.dataset.f;
-    if (detState.sort === f) detState.dir *= -1; else { detState.sort = f; detState.dir = -1; }
-    drawDetail();
+
+function renderMomentum() {}  // kept for compatibility
+
+function renderMomentumChart(canvasId, early, recent, field, metric) {
+  const agg=(data)=>{
+    const m={};
+    data.forEach(r=>{
+      const k=r[field]; if(!k||k==='Unknown')return;
+      if(!m[k])m[k]={revenue:0,units:0,sessions:0,_dates:new Set()};
+      m[k].revenue+=r.item_revenue; m[k].units+=r.quantity;
+      if(r.sessions&&!m[k]._dates.has(r.date)){m[k].sessions+=r.sessions;m[k]._dates.add(r.date);}
+    }); return m;
+  };
+  const e=agg(early), r=agg(recent);
+  const allKeys=[...new Set([...Object.keys(e),...Object.keys(r)])];
+  const minVal = metric==='revenue' ? 100 : 3; // filter tiny values (units need a much lower bar)
+  const changes=allKeys.map(k=>{
+    const ev=(e[k]||{})[metric]||0, rv=(r[k]||{})[metric]||0;
+    const pct=ev>0?((rv-ev)/ev*100):rv>0?100:0;
+    return {k,ev,rv,pct};
+  }).filter(x=>x.ev>minVal||x.rv>minVal)
+    .sort((a,b)=>b.pct-a.pct).slice(0,12);
+
+  const labels=changes.map(x=>x.k);
+  const vals=changes.map(x=>Math.round(x.pct));
+  const bgColors=vals.map(v=>v>=0?'rgba(26,122,74,0.75)':'rgba(184,50,50,0.75)');
+
+  const isCat = field==='room';
+  mkChart(canvasId,'bar',labels,vals,{backgroundColor:bgColors,borderRadius:3},{
+    indexAxis:'y',
+    y:{grid:{display:false},ticks:{font:{size:isCat?11:12}}},
+    x:{ticks:{callback:n=>(n>=0?'+':'')+n+'%'},grid:{color:'#efece3'}},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{
+      const item=changes[c.dataIndex];
+      return ` ${c.parsed>=0?'▲':'▼'} ${Math.abs(Math.round(c.parsed))}% | Early: ${metric==='revenue'?'£':''}${fmt(item.ev)} → Recent: ${metric==='revenue'?'£':''}${fmt(item.rv)}`;
+    }}}}
   });
 }
-function drawChannels(){
-  const rows = D.channels;
-  const cs = D.meta.cur_start;
-  const cur = groupBy(rows.filter(r => r.d >= cs), r => r.ch);
-  const prev = groupBy(rows.filter(r => r.d < cs), r => r.ch);
-  const chs = Object.keys({...cur, ...prev}).map(ch => {
-    const a = cur[ch] || [], b = prev[ch] || [];
-    const c = {ch, s:sum(a,r=>r.s), t:sum(a,r=>r.t), r:sum(a,r=>r.r),
-               s_p:sum(b,r=>r.s), t_p:sum(b,r=>r.t), r_p:sum(b,r=>r.r)};
-    c.cvr = c.s ? c.t/c.s : 0; c.cvr_p = c.s_p ? c.t_p/c.s_p : 0;
-    return c;
-  }).sort((a, b) => b.r - a.r);
-  const mxR = Math.max(...chs.map(x => x.r), 1), mxS = Math.max(...chs.map(x => x.s), 1);
-  document.getElementById("chTable").innerHTML = `<table><thead><tr>
-    <th>Channel</th><th>Revenue</th><th></th><th>Sessions</th><th></th><th>Transactions</th><th></th><th>CVR</th><th></th></tr></thead><tbody>` +
-    chs.map(x => `<tr><td class="name">${x.ch}</td>
-      <td style="${heat(x.r, mxR, 28)}">${gbp(x.r)}</td><td>${dl(x.r, x.r_p)}</td>
-      <td style="${heat(x.s, mxS, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
-      <td>${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
-      <td>${pct(x.cvr)}</td><td>${dl(x.cvr, x.cvr_p)}</td></tr>`).join("") + `</tbody></table>`;
-  // daily stacked revenue by channel
-  const days = [...new Set(rows.map(r => r.d))].sort();
-  const tops = chs.slice(0, 8).map(x => x.ch);
-  const lk = {}; rows.forEach(r => lk[r.d + "|" + r.ch] = r.r);
-  draw("c_ch", {type:"bar",
-    data:{labels: days.map(shortDate), datasets: tops.map((ch, i) => ({label: ch, backgroundColor: col(i),
-      data: days.map(d => lk[d + "|" + ch] || 0)}))},
-    options:{responsive:true, maintainAspectRatio:false,
-      scales:{x:{stacked:true}, y:{stacked:true, ticks:{callback:v => "£" + (v/1000).toFixed(0) + "k"}}},
-      plugins:{legend:{position:"top", labels:{boxWidth:11}},
-        tooltip:{callbacks:{label: c => `${c.dataset.label}: ${gbp(c.parsed.y)}`}}}}});
+
+// ── Demand table ──────────────────────────────────────────────────────────────
+function renderDemandTable() {
+  const by={};
+  filteredData.forEach(r=>{
+    if(!r.colour||r.colour==='Unknown')return;
+    const k=`${r.colour}||${r.room||'—'}`;
+    if(!by[k])by[k]={colour:r.colour,category:r.room||'—',revenue:0,units:0,txns:new Set()};
+    by[k].revenue+=r.item_revenue; by[k].units+=r.quantity; by[k].txns.add(r.transaction_id);
+  });
+
+  const dates=[...new Set(filteredData.map(r=>r.date))].sort();
+  const mid=dates[Math.floor(dates.length/2)];
+  const early=filteredData.filter(r=>r.date<mid);
+  const recent=filteredData.filter(r=>r.date>=mid);
+
+  const earlyMap={}, recentMap={};
+  [early,recent].forEach((set,i)=>{
+    const m=i===0?earlyMap:recentMap;
+    set.forEach(r=>{
+      if(!r.colour||r.colour==='Unknown')return;
+      const k=`${r.colour}||${r.room||'—'}`;
+      m[k]=(m[k]||0)+r.item_revenue;
+    });
+  });
+
+  let rows=Object.values(by).filter(r=>r.revenue>500).map(r=>{
+    const k=`${r.colour}||${r.category}`;
+    const ev=earlyMap[k]||0, rv=recentMap[k]||0;
+    const pct=ev>0?((rv-ev)/ev*100):rv>0?100:0;
+    return {...r,txns:r.txns.size,pct};
+  }).sort((a,b)=>b.revenue-a.revenue);
+
+  if(!rows.length){
+    document.getElementById('demand-table-container').innerHTML='<div class="empty"><div class="ei">🔍</div><p>No data — try adjusting filters</p></div>';
+    return;
+  }
+
+  const html=`<div style="overflow-x:auto"><table class="trend-table">
+    <thead><tr>
+      <th>Colour</th><th>Room</th>
+      <th>Revenue</th><th>Units</th><th>Orders</th>
+      <th>Trend (vs earlier period)</th>
+    </tr></thead>
+    <tbody>${rows.slice(0,100).map(r=>`
+    <tr>
+      <td><span class="cdot" style="background:${colFor(r.colour)}"></span>${r.colour}</td>
+      <td>${r.category}</td>
+      <td>£${fmt(r.revenue)}</td>
+      <td>${fmt(r.units)}</td>
+      <td>${fmt(r.txns)}</td>
+      <td><span class="chg ${r.pct>5?'up':r.pct<-5?'dn':'fl'}">${r.pct>=0?'▲':'▼'} ${Math.abs(Math.round(r.pct))}%</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+    ${rows.length>100?`<p style="padding:10px 16px;font-size:11px;color:var(--ink-3)">Showing 100 of ${rows.length} combinations</p>`:''}`;
+  document.getElementById('demand-table-container').innerHTML=html;
 }
 
-/* ============================== csv export ============================== */
-function exportCsv(rows, fields, headers, filename){
-  const esc = v => { v = v == null ? "" : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const csv = [headers.join(",")].concat(rows.map(r => fields.map(f => esc(r[f])).join(","))).join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
-  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+// ── Product table ─────────────────────────────────────────────────────────────
+function renderProductTable() {
+  const search=document.getElementById('table-search').value.toLowerCase();
+  const by={};
+  filteredData.forEach(r=>{
+    const k=r.item_id;
+    if(!by[k])by[k]={item_id:r.item_id,item_name:r.item_name,colour:r.colour,colour_inferred:r.colour_inferred,material:r.material,top_category:r.top_category,sub_category:r.sub_category,room:r.room,ptype:r.ptype,collection:r.collection,sofa_config:r.sofa_config,revenue:0,units:0,txns:new Set(),matched:r.matched_to_feed};
+    by[k].revenue+=r.item_revenue; by[k].units+=r.quantity; by[k].txns.add(r.transaction_id);
+  });
+  let rows=Object.values(by);
+  if(search)rows=rows.filter(r=>(r.item_name||'').toLowerCase().includes(search)||(r.colour||'').toLowerCase().includes(search)||(r.room||'').toLowerCase().includes(search)||(r.ptype||'').toLowerCase().includes(search));
+  rows.sort((a,b)=>{
+    let av=a[sortCol],bv=b[sortCol];
+    if(sortCol==='txns'){av=a.txns.size;bv=b.txns.size;}
+    if(typeof av==='string')return sortDir*av.localeCompare(bv);
+    return sortDir*(av-bv);
+  });
+  if(!rows.length){document.getElementById('table-container').innerHTML='<div class="empty"><div class="ei">🔍</div><p>No results</p></div>';return;}
+  const cols=[
+    {k:'item_name',l:'Product',f:(v,r)=>v||r.item_id},
+    {k:'collection',l:'Collection',f:v=>v&&v!=='(not set)'?v:'—'},
+    {k:'colour',l:'Colour',f:(v,r)=>v&&v!=='Unknown'?`<span class="cdot" style="background:${colFor(v)}"></span>${v}${r.colour_inferred?`<span title="Inferred from product title — feed colour was missing" style="color:var(--ink-3);font-size:10px;margin-left:3px;cursor:help">†</span>`:''}`:'—'},
+    {k:'material',l:'Material',f:v=>v&&v!=='Unknown'?v:'—'},
+    {k:'sofa_config',l:'Seats',f:v=>v&&v!=='(not set)'?v:'—'},
+    {k:'room',l:'Room',f:v=>v||'—'},
+    {k:'ptype',l:'Type',f:v=>v||'—'},
+    {k:'revenue',l:'Revenue',f:v=>'£'+fmt(v)},
+    {k:'units',l:'Units',f:v=>fmt(v)},
+    {k:'txns',l:'Orders',f:(v,r)=>fmt(r.txns.size)},
+    {k:'matched',l:'Feed',f:v=>v?'<span class="badge ok">✓</span>':'<span class="badge no">✗</span>'},
+  ];
+  const th=cols.map(c=>`<th onclick="sortTable('${c.k}')">${c.l} ${sortCol===c.k?(sortDir>0?'↑':'↓'):''}</th>`).join('');
+  const tb=rows.slice(0,200).map(r=>`<tr>${cols.map(c=>`<td>${c.f(r[c.k],r)}</td>`).join('')}</tr>`).join('');
+  document.getElementById('table-container').innerHTML=`<div style="overflow-x:auto"><table class="dt"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>${rows.length>200?`<p style="padding:10px 16px;font-size:11px;color:var(--ink-3)">Showing 200 of ${rows.length} products</p>`:''}`;
 }
 
-initAuth();
+function sortTable(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderProductTable();}
+
+// ── Metric toggles ────────────────────────────────────────────────────────────
+function setMetric(m){trendMetric=m;['revenue','sessions','units','transactions'].forEach(x=>document.getElementById('tb-'+x).classList.toggle('active',x===m));renderTrend();}
+function setDemandMetric(m){demandMetric=m;['revenue','units'].forEach(x=>{const el=document.getElementById('dm-'+x);if(el)el.classList.toggle('active',x===m);});if(filteredData.length)renderAllTrends();}
+function setColourTrendMetric(m){colourTrendMetric=m;['revenue','units'].forEach(x=>{const el=document.getElementById('ct-'+x);if(el)el.classList.toggle('active',x===m);});if(filteredData.length)renderAllTrends();}
+
+// ── Chart helper ──────────────────────────────────────────────────────────────
+function mkChart(id, type, labels, data, dsOpts, scaleOpts) {
+  scaleOpts = scaleOpts || {};
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  const isHoriz = scaleOpts.indexAxis === 'y';
+  const xScale = isHoriz
+    ? Object.assign({ beginAtZero: true, grid: { color: '#efece3' }, ticks: { color: '#8089a0', font: { size: 11 } } }, scaleOpts.x || {})
+    : Object.assign({ grid: { display: false }, ticks: { color: '#8089a0', font: { size: 11 }, maxTicksLimit: 12 } }, scaleOpts.x || {});
+  const yScale = isHoriz
+    ? Object.assign({ grid: { display: false }, ticks: { color: '#3c4a6b', font: { size: 12 } } }, scaleOpts.y || {})
+    : Object.assign({ beginAtZero: true, grid: { color: '#efece3' }, ticks: { color: '#8089a0', font: { size: 11 } } }, scaleOpts.y || {});
+  charts[id] = new Chart(ctx, {
+    type: type,
+    data: { labels: labels, datasets: [Object.assign({ data: data }, dsOpts)] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      indexAxis: scaleOpts.indexAxis || 'x',
+      plugins: Object.assign({ legend: { display: false } }, scaleOpts.plugins || {}),
+      scales: { x: xScale, y: yScale }
+    }
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt(n){if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=1000)return(n/1000).toFixed(1)+'K';return Math.round(n).toLocaleString();}
+function set(id,v){const e=document.getElementById(id);if(e)e.innerHTML=v;}
+function setStatus(s,m){document.getElementById('status-dot').className=s==='loading'?'loading':s==='ok'?'ok':s==='error'?'error':'';document.getElementById('status-text').textContent=m;}
+function showError(m){const b=document.getElementById('error-banner');b.textContent=m;b.style.display='block';}
+function hideError(){document.getElementById('error-banner').style.display='none';}
+function periodKey(date,period){
+  if(period==='daily')return date;
+  const d=new Date(date);
+  if(period==='weekly'){const day=d.getDay()||7;const m=new Date(d);m.setDate(d.getDate()-day+1);return m.toISOString().slice(0,10);}
+  if(period==='monthly')return date.slice(0,7);
+  return date.slice(0,4)+'-Q'+(Math.floor(d.getMonth()/3)+1);
+}
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function setQuickDate(preset) {
+  const today = new Date();
+  let from = new Date(today);
+
+  document.querySelectorAll('.qd-btn').forEach(b => b.classList.remove('active'));
+  if (event && event.target) event.target.classList.add('active');
+
+  if (preset === 'mtd') {
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+  } else if (preset === 'ytd') {
+    from = new Date(today.getFullYear(), 0, 1);
+  } else {
+    from.setDate(today.getDate() - parseInt(preset));
+  }
+
+  const fmt = d => d.toISOString().slice(0,10);
+  document.getElementById('date-from').value = fmt(from);
+  document.getElementById('date-to').value = fmt(today);
+
+  // Auto-pick a sensible granularity for the range
+  const rangeDays = Math.round((today - from) / 86400000);
+  const periodSel = document.getElementById('f-period');
+  if (rangeDays <= 31) periodSel.value = 'daily';
+  else if (rangeDays <= 190) periodSel.value = 'weekly';
+  else periodSel.value = 'monthly';
+  // The date range only takes effect via a fresh BigQuery pull — re-filtering
+  // in place does nothing, since the range lives in the SQL. So once we've
+  // loaded once (token cached, no popup), a period click re-queries for real.
+  if (rawData.length) loadData();
+}
+
+// Set default — 1 year
+const _today = new Date(), _yearAgo = new Date(_today);
+_yearAgo.setFullYear(_today.getFullYear() - 1);
+document.getElementById('date-to').value = _today.toISOString().slice(0,10);
+document.getElementById('date-from').value = _yearAgo.toISOString().slice(0,10);
+
+
+// Update display when custom dates are typed
+// Auto-connect status
+setStatus('idle', 'Ready — click Run Query to sign in');
+
+['date-from','date-to'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    const f = document.getElementById('date-from').value;
+    const t = document.getElementById('date-to').value;
+    if (f && t) {
+      const dd = document.getElementById('date-display');
+      if (dd) dd.textContent = f + '  →  ' + t + '  (Custom)';
+      // Custom range: auto-pick granularity to match
+      const days = Math.round((new Date(t) - new Date(f)) / 86400000);
+      const ps = document.getElementById('f-period');
+      if (days <= 31) ps.value = 'daily';
+      else if (days <= 190) ps.value = 'weekly';
+      else ps.value = 'monthly';
+      document.querySelectorAll('.qd-btn').forEach(b => b.classList.remove('active'));
+      if (rawData.length) setStatus('idle', 'Date range changed — click Run Query to reload');
+    }
+  });
+});
 </script>
 </body>
 </html>
