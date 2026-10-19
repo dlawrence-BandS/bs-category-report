@@ -100,6 +100,11 @@
       <option value="w26">Last 26 weeks</option>
       <option value="custom">Custom…</option>
     </select>
+    <label>Compare</label>
+    <select id="cmp">
+      <option value="pop">vs previous period (WoW)</option>
+      <option value="yoy">vs same period last year (YoY)</option>
+    </select>
     <span id="customWrap" class="customwrap">
       <input type="date" id="fromD"> <span class="dash">→</span> <input type="date" id="toD">
       <button class="btn" id="applyBtn">Apply</button>
@@ -317,18 +322,18 @@ pa AS (SELECT d, k, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) A
 SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(va.d, pa.d)) AS d, COALESCE(va.k, pa.k) AS k,
   IFNULL(va.s,0) AS s, IFNULL(pa.t,0) AS t, IFNULL(pa.ip,0) AS ip, IFNULL(pa.r,0) AS r
 FROM va FULL OUTER JOIN pa USING (d, k) ORDER BY d, k`; }
-function sqlItems(a, b, curStart){ const fc = focusCase(); return `
+function sqlItems(pa_, pb_, ca_, cb_, curStart){ const fc = focusCase(); const SUF = `((_TABLE_SUFFIX BETWEEN '${pa_}' AND '${pb_}') OR (_TABLE_SUFFIX BETWEEN '${ca_}' AND '${cb_}'))`; return `
 WITH v AS (
   SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
     TRIM(i.item_name) AS nm, ${SID} AS sid
   FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'view_item' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+  WHERE event_name = 'view_item' AND ${SUF}
     AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
 p AS (
   SELECT IF(PARSE_DATE('%Y%m%d', event_date) >= DATE '${curStart}', 'cur', 'prev') AS pd,
     TRIM(i.item_name) AS nm, ecommerce.transaction_id AS tid, IFNULL(i.quantity, 1) AS q, IFNULL(i.item_revenue, 0) AS rev
   FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+  WHERE event_name = 'purchase' AND ${SUF}
     AND i.item_name IS NOT NULL AND TRIM(i.item_name) != ''),
 attrs AS (
   SELECT TRIM(i.item_name) AS nm,
@@ -338,7 +343,7 @@ attrs AS (
     APPROX_TOP_COUNT(NULLIF(TRIM(i.item_brand), ''), 1)[OFFSET(0)].value AS b,
     APPROX_TOP_COUNT(${fc}, 1)[OFFSET(0)].value AS k
   FROM ${TBL}, UNNEST(items) AS i
-  WHERE event_name IN ('view_item', 'purchase') AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'
+  WHERE event_name IN ('view_item', 'purchase') AND ${SUF}
     AND i.item_name IS NOT NULL AND TRIM(i.item_name) != '' GROUP BY nm),
 va AS (SELECT pd, nm, COUNT(DISTINCT sid) AS s FROM v GROUP BY pd, nm),
 pa AS (SELECT pd, nm, COUNT(DISTINCT tid) AS t, SUM(q) AS ip, ROUND(SUM(rev), 2) AS r FROM p GROUP BY pd, nm)
@@ -355,18 +360,18 @@ SELECT FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%Y%m%d', event_date)) AS d, ${fc} AS 
 FROM ${TBL}, UNNEST(items) AS i
 WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}' AND ${fc} IS NOT NULL
 GROUP BY d, k, rg, c2 HAVING r > 0 ORDER BY d`; }
-function sqlChannels(a, b){ return `
+function sqlChannels(pa_, pb_, ca_, cb_){ const SUF = `((_TABLE_SUFFIX BETWEEN '${pa_}' AND '${pb_}') OR (_TABLE_SUFFIX BETWEEN '${ca_}' AND '${cb_}'))`; return `
 WITH s AS (
   SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
     IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch, ${SID} AS sid
   FROM ${TBL}
-  WHERE event_name = 'session_start' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+  WHERE event_name = 'session_start' AND ${SUF}),
 p AS (
   SELECT PARSE_DATE('%Y%m%d', event_date) AS d,
     IFNULL(session_traffic_source_last_click.cross_channel_campaign.default_channel_group, 'Unassigned') AS ch,
     ecommerce.transaction_id AS tid, IFNULL(ecommerce.purchase_revenue, 0) AS rev
   FROM ${TBL}
-  WHERE event_name = 'purchase' AND _TABLE_SUFFIX BETWEEN '${a}' AND '${b}'),
+  WHERE event_name = 'purchase' AND ${SUF}),
 sa AS (SELECT d, ch, COUNT(DISTINCT sid) AS s FROM s GROUP BY d, ch),
 pa AS (SELECT d, ch, COUNT(DISTINCT tid) AS t, ROUND(SUM(rev), 2) AS r FROM p GROUP BY d, ch)
 SELECT FORMAT_DATE('%Y-%m-%d', COALESCE(sa.d, pa.d)) AS d, COALESCE(sa.ch, pa.ch) AS ch,
@@ -379,12 +384,15 @@ const TABS = [];
 const cache = {};
 const rendered = {};
 let curPeriod = null;
+let cmpMode = "pop";
+const cmpTxt = () => cmpMode === "yoy" ? "vs same period last year" : "vs previous period";
+const cmpShort = () => cmpMode === "yoy" ? "YoY deltas" : "WoW deltas";
 let activeTab = null;
 
 function setPeriod(from, to){
   const lenDays = Math.round((parseD(to) - parseD(from)) / 86400000) + 1;
-  const prev_end = addD(from, -1);
-  const prev_start = addD(from, -lenDays);
+  const prev_end = cmpMode === "yoy" ? addD(to, -364) : addD(from, -1);
+  const prev_start = cmpMode === "yoy" ? addD(from, -364) : addD(from, -lenDays);
   curPeriod = {
     from, to, prev_start, prev_end, lenDays,
     weeklyStart: mondayStr(minD(prev_start, addD(to, -7 * TREND_WEEKS))),
@@ -420,9 +428,9 @@ const LOADERS = {
   monthly_category: () => bq(sqlMonthly(sfx(curPeriod.monthlyStart), sfx(curPeriod.to))),
   daily_focus: () => bq(sqlDailyFocus(sfx(curPeriod.focusStart), sfx(curPeriod.to))),
   focus_breakdown: () => bq(sqlBreakdown(sfx(curPeriod.from), sfx(curPeriod.to))),
-  channels: () => bq(sqlChannels(sfx(curPeriod.prev_start), sfx(curPeriod.to))),
+  channels: () => bq(sqlChannels(sfx(curPeriod.prev_start), sfx(curPeriod.prev_end), sfx(curPeriod.from), sfx(curPeriod.to))),
   items_wow: async () => {
-    const rows = await bq(sqlItems(sfx(curPeriod.prev_start), sfx(curPeriod.to), curPeriod.from));
+    const rows = await bq(sqlItems(sfx(curPeriod.prev_start), sfx(curPeriod.prev_end), sfx(curPeriod.from), sfx(curPeriod.to), curPeriod.from));
     const items = {};
     rows.forEach(r => {
       const it = items[r.nm] || (items[r.nm] = {n: r.nm, id: r.id, c: r.c, c2: r.c2, b: r.b, k: r.k,
@@ -470,6 +478,9 @@ function wireControls(){
   const syncVis = () => { custom.style.display = preset.value === "custom" ? "flex" : "none"; };
   preset.onchange = () => { syncVis(); if (preset.value !== "custom") applyControls(); };
   document.getElementById("applyBtn").onclick = applyControls;
+  const cmpSel = document.getElementById("cmp");
+  cmpSel.value = cmpMode;
+  cmpSel.onchange = () => { cmpMode = cmpSel.value; applyControls(); };
   document.getElementById("refreshBtn").onclick = () => {
     for (const k in cache) delete cache[k];
     for (const k in rendered) delete rendered[k];
@@ -625,7 +636,7 @@ function renderCategory(){
   const rows = D.weekly_category;
   const pg = document.getElementById("pg_cat");
   pg.innerHTML = weeklyKpis(rows) + `
-    <div class="card"><h2>Category KPIs — last week <span class="sub">vs previous week</span></h2>
+    <div class="card"><h2>Category KPIs — last week <span class="sub">${cmpTxt()}</span></h2>
       <div class="body" style="overflow-x:auto">${kpiTable(rows, "Item category")}</div></div>
     <div class="card"><h2>Category share by transactions <span class="sub">weekly, 100% stacked</span></h2>
       <div class="body chartbox"><canvas id="c_cat_t"></canvas></div></div>
@@ -658,7 +669,7 @@ function renderSubcategory(){
   const rows = D.weekly_subcategory.filter(r => r.c !== "Other" && r.c !== "(not set)");
   const pg = document.getElementById("pg_sub");
   pg.innerHTML = weeklyKpis(D.weekly_subcategory) + `
-    <div class="card"><h2>Sub-category KPIs — last week <span class="sub">vs previous week, top 15 by revenue</span></h2>
+    <div class="card"><h2>Sub-category KPIs — last week <span class="sub">${cmpTxt()}, top 15 by revenue</span></h2>
       <div class="body" style="overflow-x:auto" id="subTable"></div></div>
     <div class="card"><h2>Transactions by sub-category <span class="sub">weekly, top 6</span></h2>
       <div class="body chartbox"><canvas id="c_sub_t"></canvas></div></div>
@@ -730,10 +741,10 @@ function stackedDaily(canvasId, rows, dimField){
 function renderFocus(k, label){
   const pg = document.getElementById("pg_f_" + k);
   const daily = D.daily_focus.filter(r => r.k === k);
-  const cs = D.meta.cur_start, ce = D.meta.cur_end, ps = D.meta.prev_start;
+  const cs = D.meta.cur_start, ce = D.meta.cur_end, ps = D.meta.prev_start, pe = D.meta.prev_end;
   const inRange = (d, a, b) => d >= a && d <= b;
   const cur = daily.filter(r => inRange(r.d, cs, ce));
-  const prev = daily.filter(r => inRange(r.d, ps, cs) && r.d < cs);
+  const prev = daily.filter(r => inRange(r.d, ps, pe));
   const m = a => ({s:sum(a,r=>r.s), t:sum(a,r=>r.t), ip:sum(a,r=>r.ip), r:sum(a,r=>r.r)});
   const c = m(cur), p = m(prev);
   const items = D.items_wow.filter(r => r.k === k && (r.r > 0 || r.s > 100))
@@ -747,7 +758,7 @@ function renderFocus(k, label){
     {l:"Item revenue", v:gbp(c.r), d:dl(c.r, p.r)},
     {l:"AOV", v:c.t?gbp(c.r/c.t):"-", d:dl(c.t?c.r/c.t:0, p.t?p.r/p.t:0)},
   ]) + `
-    <div class="card"><h2>${label} — item detail, last week <span class="sub">top 25 by revenue, WoW deltas</span></h2>
+    <div class="card"><h2>${label} — item detail, last week <span class="sub">top 25 by revenue, ${cmpShort()}</span></h2>
       <div class="body" style="overflow-x:auto"><table><thead><tr>
         <th>Item name</th><th>Revenue</th><th></th><th>Sessions</th><th></th>
         <th>Transactions</th><th>Items purchased</th><th>CVR</th></tr></thead><tbody>` +
@@ -857,7 +868,7 @@ function renderDetail(){
       <div class="pager"><span id="dtInfo"></span>
         <button class="btn" id="dtPrev">‹</button><button class="btn" id="dtNext">›</button></div>
     </div>
-    <div class="card"><h2>Channel performance — last week <span class="sub">vs previous week, session default channel grouping</span></h2>
+    <div class="card"><h2>Channel performance — last week <span class="sub">${cmpTxt()}, session default channel grouping</span></h2>
       <div class="body" style="overflow-x:auto" id="chTable"></div>
       <div class="note">Sessions here are all site sessions by channel (not item-scoped).</div></div>
     <div class="card"><h2>Revenue by channel <span class="sub">daily, last 14 days</span></h2>
@@ -918,9 +929,10 @@ function drawChannels(){
       <td>${num(x.t)}</td><td>${dl(x.t, x.t_p)}</td>
       <td>${pct(x.cvr)}</td><td>${dl(x.cvr, x.cvr_p)}</td></tr>`).join("") + `</tbody></table>`;
   // daily stacked revenue by channel
-  const days = [...new Set(rows.map(r => r.d))].sort();
+  const chartRows = cmpMode === "yoy" ? rows.filter(r => r.d >= cs) : rows;
+  const days = [...new Set(chartRows.map(r => r.d))].sort();
   const tops = chs.slice(0, 8).map(x => x.ch);
-  const lk = {}; rows.forEach(r => lk[r.d + "|" + r.ch] = r.r);
+  const lk = {}; chartRows.forEach(r => lk[r.d + "|" + r.ch] = r.r);
   draw("c_ch", {type:"bar",
     data:{labels: days.map(shortDate), datasets: tops.map((ch, i) => ({label: ch, backgroundColor: col(i),
       data: days.map(d => lk[d + "|" + ch] || 0)}))},
