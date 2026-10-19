@@ -50,6 +50,8 @@
   .controls label{font-size:11px;color:var(--ink-soft);font-weight:600}
   select,input[type=search]{border:1px solid var(--line);border-radius:5px;padding:7px 9px;font:12.5px var(--f-data);background:#fff;color:var(--ink)}
   input[type=search]{min-width:230px}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--ink)}
   .btn{border:1px solid var(--line);background:#fff;border-radius:5px;padding:7px 12px;font:600 12px var(--f-data);cursor:pointer;color:var(--ink)}
   .btn:hover{border-color:var(--accent);color:var(--accent)}
   .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;font-size:11.5px;color:var(--ink-soft)}
@@ -597,7 +599,21 @@ function weeklyLines(canvasId, rows, metric, topN, fmt){
 }
 
 // KPI table with WoW deltas + heatmap, for category/subcategory summaries
+const kpiSort = {};   // per table: {k, dir}
+const kpiRows = {};
 function kpiTable(rows, dimLabel){
+  kpiRows[dimLabel] = rows;
+  return `<div class="kpiwrap" data-dim="${dimLabel}">${kpiTableInner(rows, dimLabel)}</div>`;
+}
+document.addEventListener("click", e => {
+  const th = e.target.closest("th[data-k]"); if (!th) return;
+  const wrap = th.closest(".kpiwrap"); if (!wrap) return;
+  const dim = wrap.dataset.dim, k = th.dataset.k;
+  const cur = kpiSort[dim] || {k: "r", dir: -1};
+  kpiSort[dim] = {k, dir: cur.k === k ? -cur.dir : (k === "c" ? 1 : -1)};
+  wrap.innerHTML = kpiTableInner(kpiRows[dim], dim);
+});
+function kpiTableInner(rows, dimLabel){
   const cw = D.meta.cur_weeks, pw = D.meta.prev_weeks;
   const aggByCat = arr => { const m = {}; arr.forEach(r => { const o = m[r.c] || (m[r.c] = {s:0, iv:0, t:0, ip:0, r:0}); o.s += r.s; o.iv += r.iv; o.t += r.t; o.ip += r.ip; o.r += (r.r || 0); }); return m; };
   const cur = aggByCat(rows.filter(r => cw.includes(r.w)));
@@ -606,12 +622,15 @@ function kpiTable(rows, dimLabel){
     const a = cur[c], b = prev[c] || {};
     return {c, s:a.s, t:a.t, ip:a.ip, r:a.r, cvr: a.s ? a.t/a.s : 0, aov: a.t ? a.r/a.t : 0,
             s_p:b.s||0, t_p:b.t||0, r_p:b.r||0, cvr_p: b.s ? b.t/b.s : 0, aov_p: b.t ? b.r/b.t : 0};
-  }).sort((a, b) => b.r - a.r);
+  });
+  const so = kpiSort[dimLabel] || {k: "r", dir: -1};
+  cats.sort((a, b) => so.k === "c" ? so.dir * String(a.c).localeCompare(String(b.c)) : so.dir * (a[so.k] - b[so.k]));
   const totR = sum(cats, x => x.r);
+  const th = (k, label) => `<th data-k="${k}" class="sortable">${label}${so.k === k ? (so.dir < 0 ? " ▼" : " ▲") : ""}</th>`;
   const mx = f => Math.max(...cats.map(x => x[f]), 1);
   const M = {s:mx("s"), t:mx("t"), cvr:mx("cvr"), r:mx("r"), aov:mx("aov")};
-  let html = `<table><thead><tr><th>${dimLabel}</th><th>Sessions</th><th></th><th>Trans.</th><th></th>
-    <th>CVR</th><th></th><th>Revenue</th><th></th><th>Rev. share</th><th>AOV</th><th></th></tr></thead><tbody>`;
+  let html = `<table><thead><tr>${th("c", dimLabel)}${th("s", "Sessions")}<th></th>${th("t", "Trans.")}<th></th>
+    ${th("cvr", "CVR")}<th></th>${th("r", "Revenue")}<th></th>${th("r", "Rev. share")}${th("aov", "AOV")}<th></th></tr></thead><tbody>`;
   for (const x of cats) {
     html += `<tr><td class="name">${x.c}</td>
       <td style="${heat(x.s, M.s, 210)}">${num(x.s)}</td><td>${dl(x.s, x.s_p)}</td>
